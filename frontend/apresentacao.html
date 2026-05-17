@@ -575,8 +575,9 @@ document.addEventListener('keydown', e => {
   if (['ArrowLeft','PageUp'].includes(e.key) && curPage > 1) { e.preventDefault(); curPage--; renderPage(curPage); }
 });
 
-// Resize handler
+// Resize handler — sempre ressincroniza o canvas (PDF re-renderiza, HTML só redimensiona)
 window.addEventListener('resize', () => {
+  syncDrawCanvas();
   if (pdfDoc) renderPage(curPage);
 });
 
@@ -613,12 +614,14 @@ function activateDraw(mode) {
   drawEnabled = true;
   drawMode    = mode;
   drawCanvas.classList.add('on');
+  htmlFrame.style.pointerEvents = 'none';
   document.getElementById('toolPen').classList.toggle('active', mode === 'pen');
   document.getElementById('toolEraser').classList.toggle('active', mode === 'eraser');
 }
 function deactivateDraw() {
   drawEnabled = false;
   drawCanvas.classList.remove('on');
+  htmlFrame.style.pointerEvents = '';
   document.getElementById('toolPen').classList.remove('active');
   document.getElementById('toolEraser').classList.remove('active');
 }
