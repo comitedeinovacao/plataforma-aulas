@@ -227,8 +227,8 @@
     socket.on('join:success', ({ currentSlide, totalSlides, lesson, activeQuiz }) => {
       document.getElementById('topbarLesson').textContent = lesson.name;
       lessonType = lesson.type;
-      lessonFilename = lesson.filename;
-      loadLesson(lesson.filename, lesson.type, currentSlide, totalSlides);
+      lessonFilename = lesson.url || `/uploads/${lesson.filename}`;
+      loadLesson(lessonFilename, lesson.type, currentSlide, totalSlides);
       if (activeQuiz) showQuiz(activeQuiz);
     });
 

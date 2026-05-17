@@ -6,12 +6,12 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-// Necessário para sessões funcionarem atrás do proxy do Render/Heroku
 app.set('trust proxy', 1);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -22,15 +22,57 @@ const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 [DATA_DIR, UPLOADS_DIR].forEach(d => !fs.existsSync(d) && fs.mkdirSync(d, { recursive: true }));
 
-// ─── Lessons DB (JSON file) ───────────────────────────────────────────────────
+// ─── Supabase (persistência em produção) ──────────────────────────────────────
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  console.log('  ☁️   Supabase conectado — armazenamento persistente ativo');
+} else {
+  console.log('  📁  Armazenamento local (configure SUPABASE_URL e SUPABASE_KEY para persistência)');
+}
+const BUCKET = 'aulas';
+
+// ─── Lessons — armazenamento local (fallback) ─────────────────────────────────
 const LESSONS_FILE = path.join(DATA_DIR, 'lessons.json');
-function getLessons() {
+function getLocalLessons() {
   if (!fs.existsSync(LESSONS_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(LESSONS_FILE, 'utf8')); }
   catch { return []; }
 }
-function saveLessons(lessons) {
+function saveLocalLessons(lessons) {
   fs.writeFileSync(LESSONS_FILE, JSON.stringify(lessons, null, 2));
+}
+
+// ─── Lessons — abstração (Supabase ou local) ──────────────────────────────────
+async function getLessons() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('lessons')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+    if (error) { console.error('Supabase getLessons:', error.message); return []; }
+    return data;
+  }
+  return getLocalLessons();
+}
+
+async function deleteLesson(id) {
+  if (supabase) {
+    const { data: lesson } = await supabase.from('lessons').select('filename').eq('id', id).single();
+    if (lesson?.filename) {
+      await supabase.storage.from(BUCKET).remove([lesson.filename]);
+    }
+    await supabase.from('lessons').delete().eq('id', id);
+  } else {
+    const lessons = getLocalLessons();
+    const idx = lessons.findIndex(l => l.id === id);
+    if (idx === -1) return false;
+    const [l] = lessons.splice(idx, 1);
+    const fp = path.join(UPLOADS_DIR, l.filename);
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    saveLocalLessons(lessons);
+  }
+  return true;
 }
 
 // ─── Room Code Generator ──────────────────────────────────────────────────────
@@ -42,8 +84,8 @@ function generateRoomCode() {
 }
 
 // ─── In-memory Sessions ───────────────────────────────────────────────────────
-const sessions = new Map();   // roomCode → session
-const socketMeta = new Map(); // socketId → { role, roomCode, name }
+const sessions = new Map();
+const socketMeta = new Map();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -53,7 +95,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     maxAge: 8 * 60 * 60 * 1000,
-    secure: isProd,          // HTTPS obrigatório em produção
+    secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
   },
 }));
@@ -63,12 +105,9 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 const auth = (req, res, next) =>
   req.session?.authenticated ? next() : res.status(401).json({ error: 'Não autenticado' });
 
-// ─── File Upload ──────────────────────────────────────────────────────────────
+// ─── File Upload (sempre memória → decide destino depois) ─────────────────────
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOADS_DIR,
-    filename: (_, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
-  }),
+  storage: multer.memoryStorage(),
   fileFilter: (_, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, ['.pdf', '.html', '.htm'].includes(ext));
@@ -94,40 +133,75 @@ app.get('/api/me', (req, res) => {
   res.json({ authenticated: !!req.session?.authenticated });
 });
 
-app.get('/api/lessons', auth, (req, res) => res.json(getLessons()));
+app.get('/api/lessons', auth, async (req, res) => {
+  res.json(await getLessons());
+});
 
-app.post('/api/lessons/upload', auth, upload.single('file'), (req, res) => {
+app.post('/api/lessons/upload', auth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Arquivo inválido ou não enviado' });
+
   const ext = path.extname(req.file.originalname).toLowerCase();
-  const lesson = {
-    id: randomUUID(),
-    name: (req.body.name || '').trim() || path.basename(req.file.originalname, ext),
-    type: ext === '.pdf' ? 'pdf' : 'html',
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    uploadedAt: new Date().toISOString(),
-    size: req.file.size,
-  };
-  const lessons = getLessons();
-  lessons.unshift(lesson);
-  saveLessons(lessons);
-  res.json(lesson);
+  const uniqueName = `${randomUUID()}${ext}`;
+  let url;
+
+  try {
+    if (supabase) {
+      // Upload para Supabase Storage
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET)
+        .upload(uniqueName, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(uniqueName);
+      url = urlData.publicUrl;
+    } else {
+      // Salva localmente
+      fs.writeFileSync(path.join(UPLOADS_DIR, uniqueName), req.file.buffer);
+      url = `/uploads/${uniqueName}`;
+    }
+
+    const lesson = {
+      id: randomUUID(),
+      name: (req.body.name || '').trim() || path.basename(req.file.originalname, ext),
+      type: ext === '.pdf' ? 'pdf' : 'html',
+      filename: uniqueName,
+      url,
+      original_name: req.file.originalname,
+      uploaded_at: new Date().toISOString(),
+      size: req.file.size,
+    };
+
+    if (supabase) {
+      const { data, error } = await supabase.from('lessons').insert(lesson).select().single();
+      if (error) throw error;
+      res.json(data);
+    } else {
+      const lessons = getLocalLessons();
+      lessons.unshift(lesson);
+      saveLocalLessons(lessons);
+      res.json(lesson);
+    }
+  } catch (err) {
+    console.error('Erro no upload:', err.message);
+    res.status(500).json({ error: 'Erro ao salvar arquivo: ' + err.message });
+  }
 });
 
-app.delete('/api/lessons/:id', auth, (req, res) => {
-  const lessons = getLessons();
-  const idx = lessons.findIndex(l => l.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Não encontrada' });
-  const [lesson] = lessons.splice(idx, 1);
-  const filePath = path.join(UPLOADS_DIR, lesson.filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  saveLessons(lessons);
-  res.json({ ok: true });
+app.delete('/api/lessons/:id', auth, async (req, res) => {
+  try {
+    const ok = await deleteLesson(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Não encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/sessions', auth, (req, res) => {
-  const lesson = getLessons().find(l => l.id === req.body.lessonId);
+app.post('/api/sessions', auth, async (req, res) => {
+  const lessons = await getLessons();
+  const lesson = lessons.find(l => l.id === req.body.lessonId);
   if (!lesson) return res.status(404).json({ error: 'Aula não encontrada' });
+
   const roomCode = generateRoomCode();
   sessions.set(roomCode, {
     roomCode, lesson,
@@ -170,16 +244,19 @@ io.on('connection', (socket) => {
     const s = sessions.get(code);
     if (!s) return socket.emit('join:error', 'Sala não encontrada. Verifique o código.');
     if (!name?.trim()) return socket.emit('join:error', 'Informe seu nome');
+
     const student = { id: socket.id, name: name.trim() };
     s.students.set(socket.id, student);
     socket.join(code);
     socketMeta.set(socket.id, { role: 'student', roomCode: code, name: student.name });
+
     socket.emit('join:success', {
       currentSlide: s.currentSlide,
       totalSlides: s.totalSlides,
-      lesson: { type: s.lesson.type, filename: s.lesson.filename, name: s.lesson.name },
+      lesson: { type: s.lesson.type, filename: s.lesson.filename, url: s.lesson.url, name: s.lesson.name },
       activeQuiz: s.activeQuiz,
     });
+
     if (s.teacherSocket) {
       io.to(s.teacherSocket).emit('student:joined', { id: socket.id, name: student.name, count: s.students.size });
     }
@@ -210,14 +287,17 @@ io.on('connection', (socket) => {
     if (!meta || meta.role !== 'student') return;
     const s = sessions.get(meta.roomCode);
     if (!s?.activeQuiz) return;
-    if (s.quizResults[meta.name]) return; // already answered
+    if (s.quizResults[meta.name]) return;
+
     const correct = answer === s.activeQuiz.correctAnswer;
     s.quizResults[meta.name] = { answer, correct };
     socket.emit('quiz:answered', { correct });
+
     const results = Object.values(s.quizResults);
     const breakdown = {};
     s.activeQuiz.options.forEach(o => { breakdown[o] = 0; });
     results.forEach(r => { if (breakdown[r.answer] !== undefined) breakdown[r.answer]++; });
+
     if (s.teacherSocket) {
       io.to(s.teacherSocket).emit('quiz:results', {
         results: s.quizResults, breakdown,

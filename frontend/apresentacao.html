@@ -472,7 +472,8 @@ socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
   document.getElementById('qrModalCode').textContent    = roomCode;
   lessonType = lesson.type;
   updateQR();
-  loadLesson(lesson.filename, lesson.type, currentSlide || 0);
+  const fileUrl = lesson.url || `/uploads/${lesson.filename}`;
+  loadLesson(fileUrl, lesson.type, currentSlide || 0);
 });
 
 socket.on('student:joined', ({ name, count }) => {
@@ -503,11 +504,11 @@ function toast(msg, t = 'ok') {
 }
 
 // ─── Lesson ────────────────────────────────────────────────────────────────
-async function loadLesson(filename, type, startSlide) {
+async function loadLesson(url, type, startSlide) {
   document.getElementById('viewerState').style.display = 'flex';
   if (type === 'pdf') {
     htmlFrame.style.display = 'none';
-    pdfDoc = await pdfjsLib.getDocument(`/uploads/${filename}`).promise;
+    pdfDoc = await pdfjsLib.getDocument(url).promise;
     totalPages = pdfDoc.numPages;
     curPage = Math.min((startSlide || 0) + 1, totalPages);
     await renderPage(curPage);
@@ -515,7 +516,7 @@ async function loadLesson(filename, type, startSlide) {
     pdfCanvas.style.display = 'none';
     document.getElementById('slideNav').style.visibility = 'hidden';
     htmlFrame.style.display = 'block';
-    htmlFrame.src = `/uploads/${filename}`;
+    htmlFrame.src = url;
     htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
   }
 }
