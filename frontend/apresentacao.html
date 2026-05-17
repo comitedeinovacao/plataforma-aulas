@@ -516,7 +516,7 @@ async function loadLesson(url, type, startSlide) {
     pdfCanvas.style.display = 'none';
     document.getElementById('slideNav').style.visibility = 'hidden';
     htmlFrame.style.display = 'block';
-    htmlFrame.src = url;
+    htmlFrame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
     htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
   }
 }

@@ -359,6 +359,22 @@ io.on('connection', (socket) => {
   });
 });
 
+// ─── HTML proxy (corrige content-type do Supabase Storage) ───────────────────
+app.get('/api/proxy-html', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).end();
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).end();
+    const html = await response.text();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('proxy-html:', err.message);
+    res.status(500).end();
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 server.listen(PORT, () => {
   console.log(`\n  🎓  Plataforma de Aulas — Senac Araçatuba`);

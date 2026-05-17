@@ -287,16 +287,16 @@
     });
 
     // ─── Lesson loader ─────────────────────────────────────────────────────────
-    async function loadLesson(filename, type, startSlide, totalSlides) {
+    async function loadLesson(url, type, startSlide, totalSlides) {
       if (type === 'pdf') {
         document.getElementById('htmlFrame').style.display = 'none';
-        pdfDoc = await pdfjsLib.getDocument(`/uploads/${filename}`).promise;
+        pdfDoc = await pdfjsLib.getDocument(url).promise;
         await renderPage(startSlide + 1, totalSlides || pdfDoc.numPages);
       } else {
         document.getElementById('pdfCanvas').style.display = 'none';
         const frame = document.getElementById('htmlFrame');
         frame.style.display = 'block';
-        frame.src = `/uploads/${filename}`;
+        frame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
         frame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
         document.getElementById('slideInfo').textContent = '';
       }
