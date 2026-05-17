@@ -359,14 +359,47 @@ io.on('connection', (socket) => {
   });
 });
 
-// ─── HTML proxy (corrige content-type do Supabase Storage) ───────────────────
+// Script injetado nas apresentações HTML para sincronização de slides
+const SLIDE_SYNC_SCRIPT = `<script>
+(function(){
+  var slides=[],cur=0;
+  function init(){
+    slides=Array.from(document.querySelectorAll('.slide'));
+    if(!slides.length)return;
+    cur=Math.max(0,slides.findIndex(function(s){return s.classList.contains('active');}));
+    report();
+    new MutationObserver(function(ms){
+      var hit=ms.some(function(m){return slides.indexOf(m.target)>=0;});
+      if(!hit)return;
+      var n=slides.findIndex(function(s){return s.classList.contains('active');});
+      if(n>=0&&n!==cur){cur=n;report();}
+    }).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class']});
+    window.addEventListener('message',function(e){
+      if(e.data&&e.data.type==='goto')goTo(+e.data.slide);
+    });
+  }
+  function goTo(n){
+    if(n<0||n>=slides.length)return;
+    slides.forEach(function(s,i){s.classList.toggle('active',i===n);});
+  }
+  function report(){
+    try{window.parent.postMessage({type:'slideChange',slide:cur,total:slides.length},'*');}catch(e){}
+  }
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):setTimeout(init,200);
+})();
+</script>`;
+
+// ─── HTML proxy (injeta script de sincronização de slides) ────────────────────
 app.get('/api/proxy-html', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).end();
   try {
     const response = await fetch(url);
     if (!response.ok) return res.status(response.status).end();
-    const html = await response.text();
+    let html = await response.text();
+    html = html.includes('</body>')
+      ? html.replace('</body>', SLIDE_SYNC_SCRIPT + '</body>')
+      : html + SLIDE_SYNC_SCRIPT;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {

@@ -297,7 +297,10 @@
         const frame = document.getElementById('htmlFrame');
         frame.style.display = 'block';
         frame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
-        frame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
+        frame.onload = () => {
+          document.getElementById('viewerState').style.display = 'none';
+          frame.style.pointerEvents = 'none'; // bloqueia navegação do aluno
+        };
         document.getElementById('slideInfo').textContent = '';
       }
     }
@@ -331,6 +334,9 @@
     async function updateSlide(slide, total) {
       if (lessonType === 'pdf' && pdfDoc) {
         await renderPage(slide + 1, total);
+      } else if (lessonType === 'html') {
+        const frame = document.getElementById('htmlFrame');
+        try { frame.contentWindow.postMessage({ type: 'goto', slide }, '*'); } catch(e) {}
       }
       if (total) document.getElementById('slideInfo').textContent = `${slide + 1} / ${total}`;
     }

@@ -476,6 +476,17 @@ socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
   loadLesson(fileUrl, lesson.type, currentSlide || 0);
 });
 
+// Recebe mudança de slide do iframe HTML e propaga para alunos
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'slideChange' && lessonType === 'html') {
+    const { slide, total } = e.data;
+    document.getElementById('slideCounter').textContent = `${slide + 1} / ${total}`;
+    document.getElementById('slideOverlay').textContent = `${slide + 1} / ${total}`;
+    document.getElementById('slideNav').style.visibility = 'visible';
+    socket.emit('slide:change', { slide, total });
+  }
+});
+
 socket.on('student:joined', ({ name, count }) => {
   document.getElementById('studentCountNum').textContent = count;
   addStudentItem(name);
