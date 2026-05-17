@@ -517,7 +517,7 @@ async function loadLesson(url, type, startSlide) {
     document.getElementById('slideNav').style.visibility = 'hidden';
     htmlFrame.style.display = 'block';
     htmlFrame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
-    htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
+    htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; syncDrawCanvas(); };
   }
 }
 
@@ -609,6 +609,7 @@ document.querySelectorAll('.fp-close').forEach(btn => {
 
 // ─── Drawing ────────────────────────────────────────────────────────────────
 function activateDraw(mode) {
+  syncDrawCanvas();
   drawEnabled = true;
   drawMode    = mode;
   drawCanvas.classList.add('on');
