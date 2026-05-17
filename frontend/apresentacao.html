@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apresentação — Plataforma Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    *, *::before, *::after { user-select: none; }
+    html, body { height: 100%; overflow: hidden; background: #0a0e1a; }
+    body { display: flex; flex-direction: column; }
+
+    /* ─── Top bar ─────────────────────────────────────────────────────────── */
+    .topbar {
+      height: 52px; flex-shrink: 0;
+      background: var(--azul);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1rem; gap: .75rem; z-index: 300;
+      box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    }
+    .tb-left   { display: flex; align-items: center; gap: .625rem; min-width: 0; }
+    .tb-center { display: flex; align-items: center; gap: .5rem; }
+    .tb-right  { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+
+    .lesson-title {
+      font-size: .875rem; font-weight: 700; color: #fff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+    }
+    .slide-counter { font-size: .8rem; font-weight: 600; color: rgba(255,255,255,.65); }
+    .nav-btn {
+      width: 30px; height: 30px; border: 1.5px solid rgba(255,255,255,.2);
+      background: transparent; border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; transition: var(--ease);
+    }
+    .nav-btn:hover { background: rgba(255,255,255,.12); }
+    .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    .room-pill {
+      display: flex; align-items: center; gap: .4rem;
+      background: rgba(247,148,29,.18); border: 1.5px solid var(--laranja);
+      border-radius: 100px; padding: .28rem .875rem;
+      color: var(--laranja); font-size: .8rem; font-weight: 800;
+      letter-spacing: .08em; cursor: pointer; transition: var(--ease);
+    }
+    .room-pill:hover { background: rgba(247,148,29,.3); }
+
+    .student-count {
+      display: flex; align-items: center; gap: .375rem;
+      background: rgba(255,255,255,.1); border-radius: 100px;
+      padding: .28rem .875rem; color: #fff;
+      font-size: .8rem; font-weight: 600;
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ─── Stage ──────────────────────────────────────────────────────────── */
+    .stage {
+      flex: 1; display: flex; overflow: hidden; position: relative;
+    }
+
+    /* ─── Left toolbar ───────────────────────────────────────────────────── */
+    .lbar {
+      width: 52px; flex-shrink: 0;
+      background: #141927;
+      border-right: 1px solid rgba(255,255,255,.07);
+      display: flex; flex-direction: column; align-items: center;
+      padding: .625rem 0; gap: .375rem; z-index: 200;
+    }
+    .lbar-sep { width: 28px; height: 1px; background: rgba(255,255,255,.1); margin: .25rem 0; }
+    .lbar-spacer { flex: 1; }
+
+    .tbtn {
+      width: 38px; height: 38px; border: none; border-radius: 8px;
+      background: transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,.45); transition: var(--ease); position: relative;
+    }
+    .tbtn:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .tbtn.active { background: rgba(255,255,255,.13); color: #fff; box-shadow: inset 0 0 0 1.5px var(--laranja); }
+    .tbtn.panel-open { background: var(--laranja); color: #fff; }
+
+    .cdot {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2.5px solid transparent; cursor: pointer; transition: var(--ease);
+    }
+    .cdot.sel { border-color: #fff; transform: scale(1.18); }
+
+    .sdot {
+      width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+      background: transparent; border: none; display: flex; align-items: center; justify-content: center;
+      transition: var(--ease);
+    }
+    .sdot:hover { background: rgba(255,255,255,.1); }
+    .sdot .dot { background: #fff; border-radius: 50%; }
+
+    /* ─── Viewer ──────────────────────────────────────────────────────────── */
+    .viewer {
+      flex: 1; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      background: #111827; overflow: hidden;
+    }
+    #pdfCanvas {
+      display: block; max-width: 100%; max-height: 100%;
+      box-shadow: 0 4px 48px rgba(0,0,0,.6);
+    }
+    #htmlFrame { width: 100%; height: 100%; border: none; display: none; }
+
+    /* Drawing canvas — covers viewer exactly */
+    #drawCanvas {
+      position: absolute; inset: 0;
+      pointer-events: none; z-index: 10;
+    }
+    #drawCanvas.on { pointer-events: auto; cursor: crosshair; }
+
+    .viewer-state {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1rem; color: rgba(255,255,255,.4); text-align: center;
+    }
+
+    /* ─── Floating panels ─────────────────────────────────────────────────── */
+    .fpanel {
+      position: absolute; left: 52px; top: 0; bottom: 0;
+      width: 300px; background: #1a2035;
+      border-right: 1px solid rgba(255,255,255,.09);
+      box-shadow: 6px 0 24px rgba(0,0,0,.4);
+      z-index: 190; display: none; flex-direction: column; overflow: hidden;
+      animation: slideIn .18s ease;
+    }
+    .fpanel.open { display: flex; }
+    @keyframes slideIn { from { transform: translateX(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    .fp-header {
+      padding: .875rem 1.125rem; border-bottom: 1px solid rgba(255,255,255,.08);
+      flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+    }
+    .fp-title { font-size: .8rem; font-weight: 700; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .08em; }
+    .fp-close {
+      background: none; border: none; cursor: pointer; color: rgba(255,255,255,.35);
+      font-size: 1.25rem; line-height: 1; padding: .2rem; border-radius: 4px; transition: var(--ease);
+    }
+    .fp-close:hover { color: #fff; background: rgba(255,255,255,.08); }
+    .fp-body { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .75rem; }
+    .fp-body::-webkit-scrollbar { width: 4px; }
+    .fp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 2px; }
+
+    /* Students */
+    .student-item {
+      display: flex; align-items: center; gap: .625rem;
+      padding: .625rem .875rem; background: rgba(255,255,255,.05);
+      border-radius: 8px; color: rgba(255,255,255,.8); font-size: .875rem; font-weight: 500;
+    }
+    .savatar {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--azul);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .fp-empty { text-align: center; padding: 2rem 1rem; color: rgba(255,255,255,.25); font-size: .875rem; }
+    .fp-empty svg { margin: 0 auto .75rem; }
+
+    /* Quiz */
+    .qinput {
+      background: rgba(255,255,255,.07); border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 8px; padding: .625rem .875rem;
+      font-family: inherit; font-size: .875rem; color: #fff; outline: none; width: 100%;
+      transition: var(--ease); resize: none;
+    }
+    .qinput:focus { border-color: var(--laranja); }
+    .qinput::placeholder { color: rgba(255,255,255,.25); }
+
+    .opt-row { display: flex; align-items: center; gap: .5rem; }
+    .opt-letter {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 800;
+      background: rgba(255,255,255,.08); color: rgba(255,255,255,.5);
+    }
+    .opt-check {
+      width: 28px; height: 28px; border: none; border-radius: 50%; flex-shrink: 0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.07); transition: var(--ease);
+    }
+    .opt-check.correct { background: #16a34a; }
+    .opt-check:hover { background: rgba(255,255,255,.15); }
+
+    /* Quiz results */
+    .res-bar-wrap { background: rgba(255,255,255,.08); border-radius: 4px; height: 8px; overflow: hidden; flex: 1; }
+    .res-bar { height: 100%; border-radius: 4px; transition: width .4s ease; }
+
+    /* Room panel */
+    .code-display {
+      background: rgba(247,148,29,.12); border: 1.5px solid rgba(247,148,29,.3);
+      border-radius: 10px; padding: 1.25rem; text-align: center;
+    }
+    .big-code { font-size: 2rem; font-weight: 800; color: var(--laranja); letter-spacing: .14em; }
+    .qr-img { width: 160px; height: 160px; border-radius: 8px; margin: .875rem auto; display: block; }
+
+    /* ─── QR modal (fullscreen) ──────────────────────────────────────────── */
+    .qr-modal-wrap {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,20,60,.75); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .qr-modal-wrap.open { display: flex; }
+    .qr-modal {
+      background: #fff; border-radius: 16px; padding: 2rem;
+      max-width: 360px; width: 90%; text-align: center;
+      animation: modalIn .2s ease;
+    }
+    @keyframes modalIn { from { transform: scale(.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .qr-modal-code { font-size: 2.5rem; font-weight: 800; color: var(--azul); letter-spacing: .14em; margin: .5rem 0; }
+    .qr-modal-url  { font-size: .75rem; color: var(--texto-med); word-break: break-all; margin-top: .375rem; }
+
+    /* ─── Slide-count bottom-right ───────────────────────────────────────── */
+    .slide-overlay {
+      position: absolute; bottom: 12px; right: 14px;
+      font-size: .75rem; font-weight: 700; color: rgba(255,255,255,.35);
+      pointer-events: none; z-index: 20;
+    }
+
+    /* ─── Section label inside panel ────────────────────────────────────── */
+    .fp-section { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.3); margin-bottom: -.25rem; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <div class="tb-left">
+    <a href="biblioteca.html" class="nav-btn" title="Voltar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="lesson-title" id="lessonTitle">Carregando...</span>
+  </div>
+
+  <div class="tb-center" id="slideNav">
+    <button class="nav-btn" id="prevBtn" title="Anterior (←)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="slide-counter" id="slideCounter">1 / 1</span>
+    <button class="nav-btn" id="nextBtn" title="Próximo (→)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+
+  <div class="tb-right">
+    <div class="student-count">
+      <span class="live-dot"></span>
+      <span id="studentCountNum">0</span> alunos
+    </div>
+    <div class="room-pill" id="roomPill" title="Ver QR Code">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h7v7"/></svg>
+      <span id="roomCodeDisplay">——</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STAGE ════════════════════════════════════════════════════════════ -->
+<div class="stage">
+
+  <!-- ── Left toolbar ──────────────────────────────────────────────────── -->
+  <div class="lbar">
+    <!-- Pen -->
+    <button class="tbtn" id="toolPen" title="Caneta">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><circle cx="11" cy="11" r="2"/></svg>
+    </button>
+    <!-- Eraser -->
+    <button class="tbtn" id="toolEraser" title="Borracha">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l10-10 7 7-2 2"/><path d="M6 18l12-12"/></svg>
+    </button>
+
+    <div class="lbar-sep"></div>
+
+    <!-- Colors -->
+    <div id="colorPicker" style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+      <div class="cdot sel" data-c="#F7941D" style="background:#F7941D" title="Laranja"></div>
+      <div class="cdot" data-c="#FFFFFF"    style="background:#FFFFFF"  title="Branco"></div>
+      <div class="cdot" data-c="#FFE033"    style="background:#FFE033"  title="Amarelo"></div>
+      <div class="cdot" data-c="#FF4444"    style="background:#FF4444"  title="Vermelho"></div>
+      <div class="cdot" data-c="#44BBFF"    style="background:#44BBFF"  title="Azul claro"></div>
+    </div>
+
+    <div class="lbar-sep"></div>
+
+    <!-- Sizes -->
+    <button class="sdot" onclick="setDrawSize(3)"  title="Fino">  <div class="dot" style="width:4px;height:4px"></div></button>
+    <button class="sdot" onclick="setDrawSize(7)"  title="Médio"> <div class="dot" style="width:8px;height:8px"></div></button>
+    <button class="sdot" onclick="setDrawSize(14)" title="Grosso"><div class="dot" style="width:14px;height:14px"></div></button>
+
+    <div class="lbar-sep"></div>
+
+    <!-- Clear drawing -->
+    <button class="tbtn" id="clearDrawBtn" title="Limpar desenho">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    </button>
+
+    <!-- Spacer pushes action buttons to bottom -->
+    <div class="lbar-spacer"></div>
+
+    <div class="lbar-sep"></div>
+
+    <!-- Students panel button -->
+    <button class="tbtn" id="btnStudents" data-panel="students" title="Alunos conectados">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    </button>
+    <!-- Quiz panel button -->
+    <button class="tbtn" id="btnQuiz" data-panel="quiz" title="Quiz">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+    <!-- Room/QR panel button -->
+    <button class="tbtn" id="btnRoom" data-panel="room" title="Código da sala">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h7v7"/></svg>
+    </button>
+  </div>
+
+  <!-- ── Viewer ─────────────────────────────────────────────────────────── -->
+  <div class="viewer" id="viewer">
+    <div class="viewer-state" id="viewerState">
+      <div class="spinner" style="border-color:rgba(255,255,255,.1);border-top-color:var(--laranja);width:48px;height:48px;border-width:3px;"></div>
+      <p style="color:rgba(255,255,255,.4)">Carregando aula...</p>
+    </div>
+    <canvas id="pdfCanvas"></canvas>
+    <iframe id="htmlFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    <canvas id="drawCanvas"></canvas>
+    <div class="slide-overlay" id="slideOverlay"></div>
+  </div>
+
+  <!-- ── Floating panels ────────────────────────────────────────────────── -->
+
+  <!-- Students -->
+  <div class="fpanel" id="panel-students">
+    <div class="fp-header">
+      <span class="fp-title">Alunos conectados</span>
+      <button class="fp-close" data-close="students">&times;</button>
+    </div>
+    <div class="fp-body" id="studentList">
+      <div class="fp-empty">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <p>Nenhum aluno ainda.<br>Compartilhe o código.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quiz -->
+  <div class="fpanel" id="panel-quiz">
+    <div class="fp-header">
+      <span class="fp-title" id="quizPanelTitle">Criar quiz</span>
+      <button class="fp-close" data-close="quiz">&times;</button>
+    </div>
+    <div class="fp-body">
+      <!-- Creator -->
+      <div id="quizCreator">
+        <p class="fp-section">Pergunta</p>
+        <textarea id="quizQuestion" class="qinput" rows="3" placeholder="Digite a pergunta..."></textarea>
+        <p class="fp-section">Opções (marque a correta ✓)</p>
+        <div id="optionsContainer" style="display:flex;flex-direction:column;gap:.5rem;"></div>
+        <button class="tbtn" id="addOptBtn"
+          style="color:rgba(255,255,255,.45);font-size:.8rem;width:100%;border-radius:8px;background:rgba(255,255,255,.05);height:34px;margin-top:.25rem;">
+          + Adicionar opção
+        </button>
+        <button class="btn btn-primary w-full" id="launchQuizBtn" style="margin-top:.5rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Lançar quiz
+        </button>
+      </div>
+      <!-- Results (hidden initially) -->
+      <div id="quizResultsPanel" class="hidden">
+        <div style="background:rgba(255,255,255,.06);border-radius:8px;padding:.875rem;">
+          <p style="color:rgba(255,255,255,.9);font-size:.875rem;font-weight:600;" id="resQuestionDisplay"></p>
+        </div>
+        <div style="display:flex;gap:.75rem;text-align:center;margin:.25rem 0;">
+          <div style="flex:1">
+            <p style="font-size:1.4rem;font-weight:800;color:var(--laranja)" id="resAnswered">0</p>
+            <p style="font-size:.65rem;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em">Responderam</p>
+          </div>
+          <div style="flex:1">
+            <p style="font-size:1.4rem;font-weight:800;color:#22c55e" id="resPct">0%</p>
+            <p style="font-size:.65rem;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em">Acertos</p>
+          </div>
+        </div>
+        <div id="resultBars" style="display:flex;flex-direction:column;gap:.5rem;"></div>
+        <button class="btn btn-danger w-full" id="endQuizBtn" style="margin-top:.5rem;">Encerrar quiz</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Room -->
+  <div class="fpanel" id="panel-room">
+    <div class="fp-header">
+      <span class="fp-title">Código da sala</span>
+      <button class="fp-close" data-close="room">&times;</button>
+    </div>
+    <div class="fp-body">
+      <div class="code-display">
+        <p style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:.375rem;">CÓDIGO DE ACESSO</p>
+        <p class="big-code" id="salaCodeDisplay">——</p>
+        <p style="font-size:.7rem;color:rgba(255,255,255,.3);margin-top:.375rem;">alunos acessam /aluno.html</p>
+      </div>
+      <img id="qrImg" src="" alt="QR Code" class="qr-img">
+      <button class="btn btn-secondary w-full btn-sm" id="copyLinkBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copiar link da sala
+      </button>
+      <button class="btn btn-ghost w-full btn-sm" id="showQrFullBtn"
+        style="color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.15);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        Mostrar QR em tela cheia
+      </button>
+    </div>
+  </div>
+
+</div><!-- /stage -->
+
+<!-- ── QR fullscreen modal ─────────────────────────────────────────────── -->
+<div class="qr-modal-wrap" id="qrModal">
+  <div class="qr-modal">
+    <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--texto-med);">Acesso dos alunos</p>
+    <p class="qr-modal-code" id="qrModalCode">——</p>
+    <img id="qrModalImg" src="" alt="QR Code" style="width:200px;height:200px;border-radius:10px;margin:1rem auto;display:block;">
+    <p class="qr-modal-url" id="qrModalUrl"></p>
+    <p style="font-size:.8rem;color:var(--texto-med);margin-top:.875rem;">Alunos escaneiam o QR ou digitam o código em <strong>/aluno.html</strong></p>
+    <button class="btn btn-secondary w-full" style="margin-top:1.25rem;" id="closeQrModal">Fechar</button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- PDF.js + Socket.io -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── Params ────────────────────────────────────────────────────────────────
+const params   = new URLSearchParams(location.search);
+const roomCode = params.get('sala')?.toUpperCase();
+if (!roomCode) location.href = 'biblioteca.html';
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let pdfDoc      = null;
+let curPage     = 1;
+let totalPages  = 1;
+let lessonType  = 'pdf';
+let drawEnabled = false;
+let drawMode    = 'pen';
+let drawColor   = '#F7941D';
+let drawSize    = 7;
+let isDrawing   = false;
+let lastX = 0, lastY = 0;
+let activeQuiz  = null;
+let quizOpts    = ['', '', '', ''];
+let correctAns  = null;
+const LETTERS   = ['A','B','C','D'];
+
+// ─── DOM refs ──────────────────────────────────────────────────────────────
+const viewer     = document.getElementById('viewer');
+const pdfCanvas  = document.getElementById('pdfCanvas');
+const drawCanvas = document.getElementById('drawCanvas');
+const drawCtx    = drawCanvas.getContext('2d');
+const htmlFrame  = document.getElementById('htmlFrame');
+
+// ─── Socket ────────────────────────────────────────────────────────────────
+const socket = io();
+socket.emit('professor:join', { roomCode });
+
+socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
+  document.getElementById('lessonTitle').textContent = lesson.name;
+  document.getElementById('roomCodeDisplay').textContent = roomCode;
+  document.getElementById('salaCodeDisplay').textContent = roomCode;
+  document.getElementById('qrModalCode').textContent    = roomCode;
+  lessonType = lesson.type;
+  updateQR();
+  loadLesson(lesson.filename, lesson.type, currentSlide || 0);
+});
+
+socket.on('student:joined', ({ name, count }) => {
+  document.getElementById('studentCountNum').textContent = count;
+  addStudentItem(name);
+  toast(`${name} entrou`, 'ok');
+});
+socket.on('student:left', ({ name, count }) => {
+  document.getElementById('studentCountNum').textContent = count;
+  toast(`${name} saiu`, 'inf');
+});
+
+socket.on('quiz:results', ({ breakdown, answered, correct, totalStudents }) => {
+  const pct = answered > 0 ? Math.round(correct / answered * 100) : 0;
+  document.getElementById('resAnswered').textContent = `${answered}/${totalStudents}`;
+  document.getElementById('resPct').textContent = pct + '%';
+  renderResultBars(breakdown, answered);
+});
+socket.on('error', msg => toast(msg, 'err'));
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, t = 'ok') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${t}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ─── Lesson ────────────────────────────────────────────────────────────────
+async function loadLesson(filename, type, startSlide) {
+  document.getElementById('viewerState').style.display = 'flex';
+  if (type === 'pdf') {
+    htmlFrame.style.display = 'none';
+    pdfDoc = await pdfjsLib.getDocument(`/uploads/${filename}`).promise;
+    totalPages = pdfDoc.numPages;
+    curPage = Math.min((startSlide || 0) + 1, totalPages);
+    await renderPage(curPage);
+  } else {
+    pdfCanvas.style.display = 'none';
+    document.getElementById('slideNav').style.visibility = 'hidden';
+    htmlFrame.style.display = 'block';
+    htmlFrame.src = `/uploads/${filename}`;
+    htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
+  }
+}
+
+async function renderPage(n) {
+  const page = await pdfDoc.getPage(n);
+
+  // Use viewer bounding rect for accurate size
+  const vr    = viewer.getBoundingClientRect();
+  const vw    = vr.width;
+  const vh    = vr.height;
+  const vp0   = page.getViewport({ scale: 1 });
+  const scale = Math.min(vw / vp0.width, vh / vp0.height) * 0.97;
+  const vp    = page.getViewport({ scale });
+
+  // Set canvas rendering size to match display size exactly (1:1)
+  pdfCanvas.width  = vp.width;
+  pdfCanvas.height = vp.height;
+  pdfCanvas.style.width  = vp.width  + 'px';
+  pdfCanvas.style.height = vp.height + 'px';
+
+  await page.render({ canvasContext: pdfCanvas.getContext('2d'), viewport: vp }).promise;
+
+  // Sync draw canvas to viewer size (in CSS pixels, 1:1)
+  syncDrawCanvas();
+
+  document.getElementById('viewerState').style.display = 'none';
+  pdfCanvas.style.display = 'block';
+  updateCounter();
+  socket.emit('slide:change', { slide: n - 1, total: totalPages });
+}
+
+function syncDrawCanvas() {
+  const vr = viewer.getBoundingClientRect();
+  drawCanvas.width  = Math.round(vr.width);
+  drawCanvas.height = Math.round(vr.height);
+  drawCanvas.style.width  = vr.width  + 'px';
+  drawCanvas.style.height = vr.height + 'px';
+}
+
+function updateCounter() {
+  const txt = `${curPage} / ${totalPages}`;
+  document.getElementById('slideCounter').textContent = txt;
+  document.getElementById('slideOverlay').textContent = txt;
+}
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (curPage > 1) { curPage--; renderPage(curPage); }
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (curPage < totalPages) { curPage++; renderPage(curPage); }
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (['ArrowRight','PageDown','Space'].includes(e.key) && curPage < totalPages) { e.preventDefault(); curPage++; renderPage(curPage); }
+  if (['ArrowLeft','PageUp'].includes(e.key) && curPage > 1) { e.preventDefault(); curPage--; renderPage(curPage); }
+});
+
+// Resize handler
+window.addEventListener('resize', () => {
+  if (pdfDoc) renderPage(curPage);
+});
+
+// ─── Floating panels ────────────────────────────────────────────────────────
+function openPanel(id) {
+  document.querySelectorAll('.fpanel').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.tbtn[data-panel]').forEach(b => b.classList.remove('panel-open'));
+  const panel = document.getElementById(`panel-${id}`);
+  const btn   = document.querySelector(`.tbtn[data-panel="${id}"]`);
+  if (panel) { panel.classList.add('open'); }
+  if (btn)   { btn.classList.add('panel-open'); }
+}
+function closePanel(id) {
+  const panel = document.getElementById(`panel-${id}`);
+  const btn   = document.querySelector(`.tbtn[data-panel="${id}"]`);
+  if (panel) panel.classList.remove('open');
+  if (btn)   btn.classList.remove('panel-open');
+}
+
+document.querySelectorAll('.tbtn[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.panel;
+    if (btn.classList.contains('panel-open')) closePanel(id);
+    else openPanel(id);
+  });
+});
+document.querySelectorAll('.fp-close').forEach(btn => {
+  btn.addEventListener('click', () => closePanel(btn.dataset.close));
+});
+
+// ─── Drawing ────────────────────────────────────────────────────────────────
+function activateDraw(mode) {
+  drawEnabled = true;
+  drawMode    = mode;
+  drawCanvas.classList.add('on');
+  document.getElementById('toolPen').classList.toggle('active', mode === 'pen');
+  document.getElementById('toolEraser').classList.toggle('active', mode === 'eraser');
+}
+function deactivateDraw() {
+  drawEnabled = false;
+  drawCanvas.classList.remove('on');
+  document.getElementById('toolPen').classList.remove('active');
+  document.getElementById('toolEraser').classList.remove('active');
+}
+
+document.getElementById('toolPen').addEventListener('click', () => {
+  if (drawEnabled && drawMode === 'pen') deactivateDraw();
+  else activateDraw('pen');
+});
+document.getElementById('toolEraser').addEventListener('click', () => {
+  if (drawEnabled && drawMode === 'eraser') deactivateDraw();
+  else activateDraw('eraser');
+});
+
+document.querySelectorAll('.cdot').forEach(dot => {
+  dot.addEventListener('click', () => {
+    document.querySelectorAll('.cdot').forEach(d => d.classList.remove('sel'));
+    dot.classList.add('sel');
+    drawColor = dot.dataset.c;
+    if (!drawEnabled || drawMode !== 'pen') activateDraw('pen');
+  });
+});
+function setDrawSize(s) { drawSize = s; }
+
+document.getElementById('clearDrawBtn').addEventListener('click', () => {
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  socket.emit('draw:clear');
+});
+
+// ─── Mouse/touch with CORRECT coordinate mapping ────────────────────────────
+function getDrawPos(e) {
+  const rect   = drawCanvas.getBoundingClientRect();
+  const src    = e.touches ? e.touches[0] : e;
+  // scaleX/Y corrects for any difference between CSS size and canvas buffer size
+  const scaleX = drawCanvas.width  / rect.width;
+  const scaleY = drawCanvas.height / rect.height;
+  return {
+    x: (src.clientX - rect.left) * scaleX,
+    y: (src.clientY - rect.top)  * scaleY,
+  };
+}
+
+drawCanvas.addEventListener('mousedown', e => {
+  if (!drawEnabled) return;
+  isDrawing = true;
+  const { x, y } = getDrawPos(e);
+  lastX = x; lastY = y;
+  socket.emit('draw:data', { type: 'start', x: x / drawCanvas.width, y: y / drawCanvas.height, color: drawColor, size: drawSize, mode: drawMode });
+});
+
+drawCanvas.addEventListener('mousemove', e => {
+  if (!isDrawing) return;
+  const { x, y } = getDrawPos(e);
+  strokeLine(drawCtx, lastX, lastY, x, y, drawColor, drawSize, drawMode);
+  socket.emit('draw:data', { type: 'move', x: x / drawCanvas.width, y: y / drawCanvas.height });
+  lastX = x; lastY = y;
+});
+
+['mouseup','mouseleave'].forEach(ev => drawCanvas.addEventListener(ev, () => { isDrawing = false; }));
+
+drawCanvas.addEventListener('touchstart', e => { e.preventDefault(); drawCanvas.dispatchEvent(new MouseEvent('mousedown', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY })); }, { passive: false });
+drawCanvas.addEventListener('touchmove',  e => { e.preventDefault(); drawCanvas.dispatchEvent(new MouseEvent('mousemove',  { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY })); }, { passive: false });
+drawCanvas.addEventListener('touchend',   () => drawCanvas.dispatchEvent(new MouseEvent('mouseup')));
+
+function strokeLine(ctx, x1, y1, x2, y2, color, size, mode) {
+  ctx.lineWidth  = size;
+  ctx.lineCap    = 'round';
+  ctx.lineJoin   = 'round';
+  ctx.globalCompositeOperation = mode === 'eraser' ? 'destination-out' : 'source-over';
+  ctx.strokeStyle = mode === 'eraser' ? 'rgba(0,0,0,1)' : color;
+  if (mode === 'eraser') ctx.lineWidth = size * 4;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+// ─── Students ───────────────────────────────────────────────────────────────
+function addStudentItem(name) {
+  const list = document.getElementById('studentList');
+  const empty = list.querySelector('.fp-empty');
+  if (empty) empty.remove();
+  const initials = name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const el = document.createElement('div');
+  el.className = 'student-item';
+  el.innerHTML = `<div class="savatar">${initials}</div><span class="truncate">${name}</span>`;
+  list.appendChild(el);
+}
+
+// ─── QR Code ────────────────────────────────────────────────────────────────
+function updateQR() {
+  const url = `${location.origin}/aluno.html?sala=${roomCode}`;
+  const qr  = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}&color=004587&bgcolor=FFFFFF`;
+  document.getElementById('qrImg').src      = qr;
+  document.getElementById('qrModalImg').src = qr;
+  document.getElementById('qrModalUrl').textContent = url;
+}
+
+document.getElementById('roomPill').addEventListener('click', () => document.getElementById('qrModal').classList.add('open'));
+document.getElementById('showQrFullBtn').addEventListener('click', () => document.getElementById('qrModal').classList.add('open'));
+document.getElementById('closeQrModal').addEventListener('click', () => document.getElementById('qrModal').classList.remove('open'));
+document.getElementById('qrModal').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+
+document.getElementById('copyLinkBtn').addEventListener('click', () => {
+  const url = `${location.origin}/aluno.html?sala=${roomCode}`;
+  navigator.clipboard.writeText(url).then(() => toast('Link copiado!'));
+});
+
+// ─── Quiz ────────────────────────────────────────────────────────────────────
+function buildOptRows() {
+  const c = document.getElementById('optionsContainer');
+  c.innerHTML = '';
+  quizOpts.forEach((opt, i) => {
+    const isC = correctAns === LETTERS[i];
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    row.innerHTML = `
+      <div class="opt-letter">${LETTERS[i]}</div>
+      <input type="text" class="qinput" style="flex:1;padding:.5rem .75rem" placeholder="Opção ${LETTERS[i]}" value="${opt}" data-i="${i}">
+      <button class="opt-check ${isC ? 'correct' : ''}" data-i="${i}" title="Correta">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${isC ? '#fff' : 'rgba(255,255,255,.3)'}" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>`;
+    c.appendChild(row);
+  });
+  c.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => { quizOpts[+inp.dataset.i] = inp.value; }));
+  c.querySelectorAll('.opt-check').forEach(btn => btn.addEventListener('click', () => { correctAns = LETTERS[+btn.dataset.i]; buildOptRows(); }));
+}
+buildOptRows();
+
+document.getElementById('addOptBtn').addEventListener('click', () => {
+  if (quizOpts.length < 4) { quizOpts.push(''); buildOptRows(); }
+});
+
+document.getElementById('launchQuizBtn').addEventListener('click', () => {
+  const question = document.getElementById('quizQuestion').value.trim();
+  const opts     = quizOpts.filter(o => o.trim());
+  if (!question)      { toast('Digite a pergunta', 'err'); return; }
+  if (opts.length < 2){ toast('Mínimo 2 opções', 'err'); return; }
+  const cIdx = correctAns ? LETTERS.indexOf(correctAns) : -1;
+  if (cIdx === -1 || !quizOpts[cIdx]?.trim()) { toast('Marque a resposta correta', 'err'); return; }
+
+  const quiz = { question, options: opts, correctAnswer: quizOpts[cIdx] };
+  socket.emit('quiz:launch', quiz);
+  activeQuiz = quiz;
+
+  document.getElementById('quizCreator').classList.add('hidden');
+  document.getElementById('quizResultsPanel').classList.remove('hidden');
+  document.getElementById('quizPanelTitle').textContent = 'Resultados ao vivo';
+  document.getElementById('resQuestionDisplay').textContent = question;
+  document.getElementById('resAnswered').textContent = '0';
+  document.getElementById('resPct').textContent = '0%';
+  renderResultBars({}, 0);
+  openPanel('quiz');
+});
+
+document.getElementById('endQuizBtn').addEventListener('click', () => {
+  socket.emit('quiz:end');
+  activeQuiz = null;
+  document.getElementById('quizResultsPanel').classList.add('hidden');
+  document.getElementById('quizCreator').classList.remove('hidden');
+  document.getElementById('quizPanelTitle').textContent = 'Criar quiz';
+  document.getElementById('quizQuestion').value = '';
+  quizOpts = ['', '', '', '']; correctAns = null; buildOptRows();
+});
+
+function renderResultBars(breakdown, answered) {
+  if (!activeQuiz) return;
+  const c = document.getElementById('resultBars');
+  c.innerHTML = activeQuiz.options.map(opt => {
+    const count  = breakdown[opt] || 0;
+    const pct    = answered > 0 ? Math.round(count / answered * 100) : 0;
+    const isCorr = opt === activeQuiz.correctAnswer;
+    return `<div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:.3rem">
+        <span style="font-size:.8rem;color:rgba(255,255,255,.8);font-weight:600">${opt}${isCorr ? ' ✓' : ''}</span>
+        <span style="font-size:.75rem;color:rgba(255,255,255,.35)">${count}</span>
+      </div>
+      <div class="res-bar-wrap">
+        <div class="res-bar" style="width:${pct}%;background:${isCorr ? '#22c55e' : 'var(--laranja)'}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

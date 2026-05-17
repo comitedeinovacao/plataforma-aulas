@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biblioteca — Plataforma Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+
+    .main { flex: 1; padding: 2rem 1.5rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2.5px dashed var(--cinza);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--ease);
+      background: var(--branco);
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--laranja); background: rgba(247,148,29,.04); }
+    .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-icon { color: var(--azul); margin: 0 auto 1rem; opacity: .7; }
+    .upload-title { font-size: 1rem; font-weight: 700; color: var(--azul); }
+    .upload-sub   { font-size: 0.8125rem; color: var(--texto-med); margin-top: 0.375rem; }
+
+    /* Upload progress */
+    .upload-progress { display: none; margin-top: 1rem; }
+    .progress-bar-wrap { background: var(--cinza); border-radius: 100px; height: 8px; overflow: hidden; margin-top: 0.5rem; }
+    .progress-bar { background: linear-gradient(90deg, var(--azul), var(--laranja)); height: 100%; border-radius: 100px; transition: width .2s; width: 0%; }
+
+    /* Name input modal area */
+    .name-row { display: flex; gap: 0.75rem; margin-top: 1rem; align-items: flex-end; }
+    .name-row .form-group { flex: 1; }
+
+    /* Lessons grid */
+    .grid-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .lessons-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* Lesson card */
+    .lesson-card {
+      background: var(--branco);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: var(--ease);
+      border: 2px solid transparent;
+    }
+    .lesson-card:hover { box-shadow: var(--shadow-lg); border-color: var(--cinza); transform: translateY(-2px); }
+
+    .lesson-thumb {
+      height: 140px;
+      background: var(--azul);
+      background-image: radial-gradient(circle at 70% 30%, rgba(247,148,29,.15) 0%, transparent 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .lesson-thumb svg { opacity: .6; color: var(--branco); }
+    .lesson-thumb-badge {
+      position: absolute; top: 10px; right: 10px;
+    }
+
+    .lesson-info { padding: 1rem 1.25rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+    .lesson-name { font-size: 0.9375rem; font-weight: 700; color: var(--texto); line-height: 1.3; }
+    .lesson-meta { font-size: 0.75rem; color: var(--texto-med); }
+
+    .lesson-actions {
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid var(--cinza);
+      display: flex;
+      gap: 0.5rem;
+    }
+    .lesson-actions .btn { flex: 1; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--texto-med); }
+    .empty-state svg { margin: 0 auto 1.5rem; opacity: .3; }
+
+    /* Active session info */
+    .session-banner {
+      background: var(--azul);
+      color: var(--branco);
+      border-radius: var(--radius);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .session-code { font-size: 1.5rem; font-weight: 800; letter-spacing: .1em; color: var(--laranja); }
+
+    @media (max-width: 640px) {
+      .name-row { flex-direction: column; }
+      .lessons-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <img src="https://jantardocomercio.com.br/wp-content/uploads/2022/05/site_senac.png"
+           alt="Senac" style="height:32px; width:auto;">
+      <div>
+        <div class="header-brand-name">Plataforma de Aulas</div>
+        <div class="header-brand-sub">Senac Araçatuba</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="header-pill" id="teacherPill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Professor
+      </span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" style="color:#fff;border-color:rgba(255,255,255,.25)">
+        Sair
+      </button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Active session banner (hidden by default) -->
+    <div class="session-banner hidden" id="sessionBanner">
+      <div>
+        <p class="text-sm" style="opacity:.8">Aula em andamento</p>
+        <p style="font-weight:700" id="bannerLessonName">—</p>
+      </div>
+      <div class="flex-center gap-md" style="flex-wrap:wrap; gap:1rem;">
+        <div>
+          <p class="text-xs" style="opacity:.7; margin-bottom:.2rem;">CÓDIGO DA SALA</p>
+          <p class="session-code" id="bannerCode">——</p>
+        </div>
+        <div style="display:flex; gap:.5rem;">
+          <button class="btn btn-primary btn-sm" id="bannerOpenBtn">Abrir aula</button>
+          <button class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)" id="bannerEndBtn">Encerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload section -->
+    <div class="card mb-lg">
+      <div class="card-body">
+        <h2 class="mb-md" style="color:var(--azul);">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-4px;margin-right:.5rem"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Enviar nova aula
+        </h2>
+
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".pdf,.html,.htm">
+          <div class="upload-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <p class="upload-title">Arraste o arquivo ou clique aqui</p>
+          <p class="upload-sub">PDF ou HTML — até 200 MB</p>
+        </div>
+
+        <div class="name-row hidden" id="nameRow">
+          <div class="form-group">
+            <label class="label" for="lessonName">Nome da aula</label>
+            <input type="text" id="lessonName" class="input input-sm" placeholder="Ex: Aula 01 — Fundamentos de IA">
+          </div>
+          <button class="btn btn-primary" id="uploadBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Enviar aula
+          </button>
+          <button class="btn btn-ghost" id="cancelUploadBtn">Cancelar</button>
+        </div>
+
+        <div class="upload-progress" id="uploadProgress">
+          <p class="text-sm text-muted" id="progressText">Enviando...</p>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lessons library -->
+    <div class="grid-header">
+      <h2 style="color:var(--azul);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-3px;margin-right:.5rem"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Minhas aulas
+      </h2>
+      <span class="badge badge-off" id="lessonCount">0 aulas</span>
+    </div>
+
+    <div id="lessonsGrid" class="lessons-grid">
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="spinner" style="margin:0 auto 1rem;"></div>
+        <p>Carregando...</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // ─── Auth guard ───────────────────────────────────────────────────────────
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (!d.authenticated) location.href = 'login.html';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      location.href = 'login.html';
+    });
+
+    // ─── Toast helper ─────────────────────────────────────────────────────────
+    function toast(msg, type = 'ok') {
+      const el = document.createElement('div');
+      el.className = `toast toast-${type}`;
+      el.textContent = msg;
+      document.getElementById('toast-container').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    // ─── Format helpers ───────────────────────────────────────────────────────
+    function fmtSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes/1024).toFixed(0) + ' KB';
+      return (bytes/1048576).toFixed(1) + ' MB';
+    }
+    function fmtDate(iso) {
+      return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' });
+    }
+
+    // ─── Lessons load ─────────────────────────────────────────────────────────
+    let lessons = [];
+    async function loadLessons() {
+      const res = await fetch('/api/lessons');
+      if (!res.ok) return;
+      lessons = await res.json();
+      renderLessons();
+    }
+
+    function renderLessons() {
+      const grid = document.getElementById('lessonsGrid');
+      const count = document.getElementById('lessonCount');
+      count.textContent = `${lessons.length} aula${lessons.length !== 1 ? 's' : ''}`;
+
+      if (lessons.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column:1/-1">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <p class="font-bold mt-md">Nenhuma aula ainda</p>
+            <p class="text-sm mt-sm">Envie um PDF ou HTML para começar</p>
+          </div>`;
+        return;
+      }
+
+      grid.innerHTML = lessons.map(l => `
+        <div class="lesson-card" data-id="${l.id}">
+          <div class="lesson-thumb">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              ${l.type === 'pdf'
+                ? '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 10 9"/>'
+                : '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'}
+            </svg>
+            <span class="lesson-thumb-badge badge badge-${l.type}">${l.type.toUpperCase()}</span>
+          </div>
+          <div class="lesson-info">
+            <p class="lesson-name truncate" title="${l.name}">${l.name}</p>
+            <p class="lesson-meta">${fmtDate(l.uploadedAt)} · ${fmtSize(l.size)}</p>
+          </div>
+          <div class="lesson-actions">
+            <button class="btn btn-primary btn-sm" onclick="startSession('${l.id}', '${l.name.replace(/'/g,'\\&apos;')}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Iniciar aula
+            </button>
+            <button class="btn btn-ghost btn-sm btn-icon" title="Excluir" onclick="deleteLesson('${l.id}', '${l.name.replace(/'/g,'\\&apos;')}')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ─── Delete lesson ────────────────────────────────────────────────────────
+    async function deleteLesson(id, name) {
+      if (!confirm(`Excluir "${name}"?`)) return;
+      const res = await fetch(`/api/lessons/${id}`, { method: 'DELETE' });
+      if (res.ok) { lessons = lessons.filter(l => l.id !== id); renderLessons(); toast('Aula excluída'); }
+      else toast('Erro ao excluir', 'err');
+    }
+
+    // ─── Start session ────────────────────────────────────────────────────────
+    let currentSession = null;
+    async function startSession(lessonId, lessonName) {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId }),
+      });
+      if (!res.ok) { toast('Erro ao criar sessão', 'err'); return; }
+      const data = await res.json();
+      currentSession = { roomCode: data.roomCode, lessonId, lessonName };
+      sessionStorage.setItem('currentSession', JSON.stringify(currentSession));
+
+      const banner = document.getElementById('sessionBanner');
+      document.getElementById('bannerLessonName').textContent = lessonName;
+      document.getElementById('bannerCode').textContent = data.roomCode;
+      banner.classList.remove('hidden');
+
+      toast(`Sala criada: ${data.roomCode}`, 'ok');
+    }
+
+    document.getElementById('bannerOpenBtn').addEventListener('click', () => {
+      if (currentSession) location.href = `apresentacao.html?sala=${currentSession.roomCode}`;
+    });
+
+    document.getElementById('bannerEndBtn').addEventListener('click', () => {
+      currentSession = null;
+      sessionStorage.removeItem('currentSession');
+      document.getElementById('sessionBanner').classList.add('hidden');
+      toast('Sala encerrada');
+    });
+
+    // Restore session from sessionStorage on page reload
+    const saved = sessionStorage.getItem('currentSession');
+    if (saved) {
+      try {
+        currentSession = JSON.parse(saved);
+        document.getElementById('bannerLessonName').textContent = currentSession.lessonName;
+        document.getElementById('bannerCode').textContent = currentSession.roomCode;
+        document.getElementById('sessionBanner').classList.remove('hidden');
+      } catch {}
+    }
+
+    // ─── File upload ──────────────────────────────────────────────────────────
+    const uploadZone  = document.getElementById('uploadZone');
+    const fileInput   = document.getElementById('fileInput');
+    const nameRow     = document.getElementById('nameRow');
+    const lessonName  = document.getElementById('lessonName');
+    const uploadBtn   = document.getElementById('uploadBtn');
+    const cancelBtn   = document.getElementById('cancelUploadBtn');
+    const uploadProg  = document.getElementById('uploadProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressTxt = document.getElementById('progressText');
+    let selectedFile  = null;
+
+    ['dragenter','dragover'].forEach(ev => uploadZone.addEventListener(ev, e => { e.preventDefault(); uploadZone.classList.add('drag'); }));
+    ['dragleave','drop'].forEach(ev => uploadZone.addEventListener(ev, () => uploadZone.classList.remove('drag')));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files[0];
+      if (f) selectFile(f);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) selectFile(fileInput.files[0]);
+    });
+
+    function selectFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['pdf','html','htm'].includes(ext)) { toast('Apenas PDF ou HTML', 'err'); return; }
+      selectedFile = file;
+      lessonName.value = file.name.replace(/\.[^.]+$/, '');
+      nameRow.classList.remove('hidden');
+      uploadProg.style.display = 'none';
+    }
+
+    cancelBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = '';
+      nameRow.classList.add('hidden');
+      uploadProg.style.display = 'none';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      const name = lessonName.value.trim() || selectedFile.name;
+      uploadBtn.disabled = true;
+      nameRow.classList.add('hidden');
+      uploadProg.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressTxt.textContent = 'Enviando...';
+
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      fd.append('name', name);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/lessons/upload');
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          progressBar.style.width = pct + '%';
+          progressTxt.textContent = `Enviando... ${pct}%`;
+        }
+      };
+      xhr.onload = () => {
+        uploadProg.style.display = 'none';
+        uploadBtn.disabled = false;
+        fileInput.value = '';
+        selectedFile = null;
+        if (xhr.status === 200) {
+          const lesson = JSON.parse(xhr.responseText);
+          lessons.unshift(lesson);
+          renderLessons();
+          toast(`"${lesson.name}" enviada com sucesso!`);
+        } else {
+          toast('Erro ao enviar arquivo', 'err');
+          nameRow.classList.remove('hidden');
+        }
+      };
+      xhr.onerror = () => { toast('Erro de rede', 'err'); uploadProg.style.display = 'none'; uploadBtn.disabled = false; };
+      xhr.send(fd);
+    });
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    loadLessons();
+  </script>
+</body>
+</html>

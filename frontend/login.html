@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plataforma de Aulas — Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+    .login-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: var(--azul);
+      background-image:
+        radial-gradient(circle at 20% 60%, rgba(247,148,29,.09) 0%, transparent 55%),
+        radial-gradient(circle at 80% 20%, rgba(247,148,29,.09) 0%, transparent 55%),
+        radial-gradient(circle at 50% 95%, rgba(0,51,102,.6) 0%, transparent 50%);
+    }
+    /* Linhas de circuito decorativas */
+    .login-bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(90deg, transparent 49.5%, rgba(247,148,29,.06) 49.5%, rgba(247,148,29,.06) 50.5%, transparent 50.5%),
+        linear-gradient(0deg,  transparent 49.5%, rgba(247,148,29,.06) 49.5%, rgba(247,148,29,.06) 50.5%, transparent 50.5%);
+      background-size: 80px 80px;
+    }
+
+    .login-card {
+      position: relative; z-index: 1;
+      background: rgba(255,255,255,.97);
+      border-radius: 18px;
+      box-shadow: 0 24px 72px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.1);
+      padding: 3rem 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      margin: 1rem;
+    }
+
+    .login-logo-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .login-logo { height: 48px; width: auto; }
+    .login-title { font-size: 1.25rem; font-weight: 800; color: var(--azul); text-align: center; }
+    .login-subtitle { font-size: 0.8125rem; color: var(--texto-med); text-align: center; font-weight: 500; }
+
+    .login-form { display: flex; flex-direction: column; gap: 1.25rem; }
+    .login-btn { width: 100%; font-size: 1rem; padding: 1rem; margin-top: 0.5rem; }
+
+    .login-divider {
+      display: flex; align-items: center; gap: 1rem;
+      color: var(--texto-med); font-size: 0.8125rem;
+    }
+    .login-divider::before, .login-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--cinza);
+    }
+
+    .login-student-link {
+      text-align: center; font-size: 0.875rem; color: var(--texto-med);
+    }
+    .login-student-link a {
+      color: var(--laranja); font-weight: 700; text-decoration: underline;
+    }
+    .login-student-link a:hover { color: var(--laranja-esc); }
+
+    .error-msg {
+      background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm);
+      color: #dc2626; font-size: 0.875rem; font-weight: 500;
+      padding: 0.75rem 1rem; display: none;
+    }
+
+    .version-tag {
+      position: fixed; bottom: 1rem; right: 1rem; z-index: 1;
+      color: rgba(255,255,255,.3); font-size: 0.7rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-bg"></div>
+
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Senac_logo.svg/960px-Senac_logo.svg.png"
+           alt="Senac" class="login-logo">
+      <div>
+        <p class="login-title">Plataforma de Aulas</p>
+        <p class="login-subtitle">Araçatuba — Acesso do Professor</p>
+      </div>
+    </div>
+
+    <form class="login-form" id="loginForm">
+      <div class="form-group">
+        <label class="label" for="password">Senha de acesso</label>
+        <input type="password" id="password" class="input"
+               placeholder="Digite sua senha" autocomplete="current-password" required>
+      </div>
+
+      <div class="error-msg" id="errorMsg">Senha incorreta. Tente novamente.</div>
+
+      <button type="submit" class="btn btn-primary login-btn" id="loginBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Entrar
+      </button>
+    </form>
+
+    <div class="login-divider mt-lg">ou</div>
+
+    <p class="login-student-link mt-md">
+      É aluno? <a href="aluno.html">Entrar na sala de aula</a>
+    </p>
+  </div>
+
+  <p class="version-tag">v2.0 — Senac Araçatuba</p>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // Redirect se já autenticado
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (d.authenticated) location.href = 'biblioteca.html';
+    });
+
+    const form = document.getElementById('loginForm');
+    const btn  = document.getElementById('loginBtn');
+    const err  = document.getElementById('errorMsg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.style.display = 'none';
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner spinner-sm"></div> Entrando...';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: document.getElementById('password').value }),
+        });
+        if (res.ok) {
+          location.href = 'biblioteca.html';
+        } else {
+          err.style.display = 'block';
+          btn.disabled = false;
+          btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Entrar`;
+        }
+      } catch {
+        err.textContent = 'Erro de conexão. O servidor está rodando?';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = 'Entrar';
+      }
+    });
+  </script>
+</body>
+</html>

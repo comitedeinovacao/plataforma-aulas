@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Professor - IA na Saúde</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+
+    <header class="bg-blue-800 text-white p-4 shadow-md">
+        <h1 class="text-2xl font-bold text-center">Painel do Professor: IA na Saúde</h1>
+    </header>
+
+    <div class="container mx-auto p-4 flex flex-col lg:flex-row gap-6 mt-4">
+        
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col gap-6">
+            
+            <!-- Lousa Digital -->
+            <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-semibold text-gray-800">Lousa Digital</h2>
+                    <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow transition">Limpar Lousa</button>
+                </div>
+                <div class="border-2 border-gray-300 rounded cursor-crosshair overflow-hidden bg-white">
+                    <canvas id="whiteboard" width="800" height="400" class="w-full h-auto" style="touch-action: none;"></canvas>
+                </div>
+                <p class="text-sm text-gray-500 mt-2">* Use o mouse ou toque para desenhar com a caneta azul.</p>
+            </div>
+
+            <!-- Blocos de Aula e Quizzes -->
+            <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Conteúdo e Quizzes da Aula</h2>
+                
+                <div class="space-y-6">
+                    <!-- Bloco 1 -->
+                    <div class="p-4 border border-blue-100 bg-blue-50 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-900 mb-2">Bloco 1: Fundamentos da IA na Saúde</h3>
+                        <p class="mb-3 text-gray-700"><strong>Quiz:</strong> Qual é o principal objetivo da IA na medicina moderna?</p>
+                        <ul class="list-none space-y-1 pl-0 text-gray-800">
+                            <li><span class="font-bold">A)</span> Substituir completamente os médicos.</li>
+                            <li class="bg-green-200 p-1 rounded"><span class="font-bold">B)</span> Auxiliar profissionais no diagnóstico e tratamento. (Correta)</li>
+                            <li><span class="font-bold">C)</span> Aumentar o custo dos tratamentos.</li>
+                            <li><span class="font-bold">D)</span> Gerenciar apenas o agendamento de consultas.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Bloco 2 -->
+                    <div class="p-4 border border-blue-100 bg-blue-50 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-900 mb-2">Bloco 2: Diagnóstico Assistido por IA</h3>
+                        <p class="mb-3 text-gray-700"><strong>Quiz:</strong> Em qual tipo de exame a IA tem se destacado na detecção de anomalias?</p>
+                        <ul class="list-none space-y-1 pl-0 text-gray-800">
+                            <li class="bg-green-200 p-1 rounded"><span class="font-bold">A)</span> Imagens médicas (Raio-X, RM, Tomografia). (Correta)</li>
+                            <li><span class="font-bold">B)</span> Medição de temperatura corporal.</li>
+                            <li><span class="font-bold">C)</span> Exames de reflexo simples.</li>
+                            <li><span class="font-bold">D)</span> Análise de cor dos olhos.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Bloco 3 -->
+                    <div class="p-4 border border-blue-100 bg-blue-50 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-900 mb-2">Bloco 3: IA na Descoberta de Novos Fármacos</h3>
+                        <p class="mb-3 text-gray-700"><strong>Quiz:</strong> Como a IA acelera a criação de novos medicamentos?</p>
+                        <ul class="list-none space-y-1 pl-0 text-gray-800">
+                            <li><span class="font-bold">A)</span> Misturando compostos aleatoriamente em laboratório.</li>
+                            <li><span class="font-bold">B)</span> Eliminando a necessidade de testes clínicos.</li>
+                            <li class="bg-green-200 p-1 rounded"><span class="font-bold">C)</span> Simulando milhares de interações moleculares em computador. (Correta)</li>
+                            <li><span class="font-bold">D)</span> Traduzindo bulas de remédios antigos.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Bloco 4 -->
+                    <div class="p-4 border border-blue-100 bg-blue-50 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-900 mb-2">Bloco 4: Ética e Privacidade</h3>
+                        <p class="mb-3 text-gray-700"><strong>Quiz:</strong> Qual é um dos maiores desafios éticos ao usar IA na saúde?</p>
+                        <ul class="list-none space-y-1 pl-0 text-gray-800">
+                            <li><span class="font-bold">A)</span> O alto consumo de energia elétrica dos hospitais.</li>
+                            <li class="bg-green-200 p-1 rounded"><span class="font-bold">B)</span> A proteção e privacidade dos dados médicos dos pacientes. (Correta)</li>
+                            <li><span class="font-bold">C)</span> A falta de espaço físico para armazenar os computadores.</li>
+                            <li><span class="font-bold">D)</span> A escolha da cor dos equipamentos médicos.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Bloco 5 -->
+                    <div class="p-4 border border-blue-100 bg-blue-50 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-900 mb-2">Bloco 5: O Futuro da Medicina</h3>
+                        <p class="mb-3 text-gray-700"><strong>Quiz:</strong> Qual tendência futura é impulsionada pela IA?</p>
+                        <ul class="list-none space-y-1 pl-0 text-gray-800">
+                            <li><span class="font-bold">A)</span> Padronização estrita de todos os tratamentos médicos.</li>
+                            <li><span class="font-bold">B)</span> Retorno exclusivo à medicina alternativa.</li>
+                            <li><span class="font-bold">C)</span> Fim da especialização médica.</li>
+                            <li class="bg-green-200 p-1 rounded"><span class="font-bold">D)</span> Medicina altamente personalizada baseada no perfil genético. (Correta)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Painel Lateral: Monitoramento de Alunos -->
+        <div class="w-full lg:w-1/3 bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col h-fit sticky top-4">
+            <div class="flex items-center gap-2 mb-4">
+                <svg class="w-6 h-6 text-green-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>
+                <h2 class="text-xl font-bold text-gray-800">Monitoramento ao Vivo</h2>
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-4 pb-2 border-b">Acompanhe a taxa de acertos da turma em tempo real via Socket.io.</p>
+
+            <div id="statsPanel" class="space-y-4 flex-1">
+                <p class="text-gray-500 italic text-center py-4">Conectando ao servidor... Aguardando respostas dos alunos.</p>
+                <!-- O conteúdo aqui será atualizado pelo Socket.io -->
+            </div>
+            
+            <div class="mt-6 p-4 bg-gray-50 rounded border text-sm text-gray-600">
+                <strong>Status de Conexão:</strong> <span id="connStatus" class="text-yellow-600 font-semibold">Conectando...</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Lógica da Lousa Digital (Canvas) ---
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearBtn');
+        let isDrawing = false;
+        
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        function startPosition(e) {
+            isDrawing = true;
+            draw(e);
+        }
+
+        function endPosition() {
+            isDrawing = false;
+            ctx.beginPath();
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const event = e.touches ? e.touches[0] : e;
+            const pos = getMousePos(canvas, event);
+
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#2563eb'; // Caneta Azul (Tailwind blue-600)
+
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', endPosition);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseout', endPosition);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startPosition(e); }, { passive: false });
+        canvas.addEventListener('touchend', endPosition);
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+
+        clearBtn.addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // --- Lógica do Socket.io (Monitoramento) ---
+        const socket = io('http://localhost:3000'); 
+        const statsPanel = document.getElementById('statsPanel');
+        const connStatus = document.getElementById('connStatus');
+
+        socket.on('connect', () => {
+            connStatus.textContent = 'Conectado (Online)';
+            connStatus.className = 'text-green-600 font-semibold';
+            
+            // Renderiza um estado inicial
+            renderStats({
+                'Bloco 1': 0,
+                'Bloco 2': 0,
+                'Bloco 3': 0,
+                'Bloco 4': 0,
+                'Bloco 5': 0
+            });
+        });
+
+        socket.on('disconnect', () => {
+            connStatus.textContent = 'Desconectado';
+            connStatus.className = 'text-red-600 font-semibold';
+        });
+
+        socket.on('quiz-stats', (data) => {
+            renderStats(data);
+        });
+
+        function renderStats(data) {
+            statsPanel.innerHTML = '';
+            
+            for (const [block, percentage] of Object.entries(data)) {
+                let barColor = 'bg-red-500';
+                if (percentage >= 70) barColor = 'bg-green-500';
+                else if (percentage >= 40) barColor = 'bg-yellow-400';
+
+                const statItem = `
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">${block}</span>
+                            <span class="text-sm font-bold text-gray-900">${percentage}% Acertos</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="${barColor} h-2.5 rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+                statsPanel.innerHTML += statItem;
+            }
+        }
+    </script>
+</body>
+</html>

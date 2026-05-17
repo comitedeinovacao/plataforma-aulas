@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: plataforma-aulas-senac
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TEACHER_PASSWORD
+        generateValue: false

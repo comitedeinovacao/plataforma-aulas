@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Sala de Aula — Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #0a0e1a; }
+
+    /* ─ Top bar ─ */
+    .topbar {
+      background: var(--azul);
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+    .topbar-lesson { font-size: 0.875rem; font-weight: 700; color: var(--branco); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-right { display: flex; align-items: center; gap: 0.625rem; flex-shrink: 0; }
+
+    .student-name-pill {
+      display: flex; align-items: center; gap: 0.4rem;
+      background: rgba(247,148,29,.2); border: 1px solid rgba(247,148,29,.4);
+      border-radius: 100px; padding: 0.25rem 0.875rem;
+      color: var(--laranja); font-size: 0.8rem; font-weight: 700;
+    }
+    .slide-info {
+      font-size: 0.75rem; color: rgba(255,255,255,.5); font-weight: 600;
+    }
+
+    /* ─ Stage ─ */
+    .stage {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; position: relative;
+    }
+
+    /* ─ Viewer ─ */
+    .viewer {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      overflow: hidden; background: #111827; position: relative;
+    }
+
+    #pdfCanvas { max-width: 100%; max-height: 100%; display: block; box-shadow: 0 4px 40px rgba(0,0,0,.6); }
+    #htmlFrame { width: 100%; height: 100%; border: none; display: none; }
+
+    #drawCanvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; z-index: 10;
+    }
+
+    .viewer-state {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1rem; color: rgba(255,255,255,.45);
+      text-align: center; padding: 1rem;
+    }
+    .viewer-state svg { opacity: .3; }
+
+    /* ─ Quiz overlay ─ */
+    .quiz-overlay {
+      position: absolute; inset: 0; z-index: 50;
+      background: rgba(5,12,35,.9);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem; display: none;
+    }
+
+    .quiz-card {
+      background: #1a2035;
+      border: 1.5px solid rgba(247,148,29,.3);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+      animation: modalIn .3s ease;
+    }
+
+    .quiz-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(247,148,29,.15); border: 1px solid rgba(247,148,29,.3);
+      border-radius: 100px; padding: .3rem .875rem;
+      color: var(--laranja); font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 1.25rem;
+    }
+
+    .quiz-question {
+      font-size: clamp(1rem, 3vw, 1.375rem);
+      font-weight: 700; color: var(--branco); line-height: 1.4;
+      margin-bottom: 1.5rem;
+    }
+
+    .quiz-options { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .option-btn {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-sm); cursor: pointer;
+      transition: var(--ease); text-align: left; width: 100%;
+      font-family: inherit;
+    }
+    .option-btn:hover:not(:disabled) { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); }
+    .option-btn:disabled { cursor: not-allowed; }
+    .option-btn.selected { border-color: var(--laranja); background: rgba(247,148,29,.12); }
+    .option-btn.correct  { border-color: #22c55e; background: rgba(34,197,94,.12); }
+    .option-btn.wrong    { border-color: #ef4444; background: rgba(239,68,68,.1); opacity: .7; }
+
+    .option-letter-badge {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .875rem; font-weight: 800;
+      background: rgba(255,255,255,.1); color: var(--branco);
+      flex-shrink: 0;
+    }
+    .option-btn.selected .option-letter-badge { background: var(--laranja); }
+    .option-btn.correct  .option-letter-badge { background: #22c55e; }
+    .option-btn.wrong    .option-letter-badge { background: #ef4444; }
+
+    .option-text { font-size: 1rem; font-weight: 600; color: rgba(255,255,255,.9); }
+
+    /* Result card */
+    .result-card {
+      display: none;
+      background: rgba(255,255,255,.05);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .result-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .result-text { font-size: 1rem; font-weight: 700; color: var(--branco); }
+    .result-sub  { font-size: 0.875rem; color: rgba(255,255,255,.5); margin-top: 0.25rem; }
+
+    /* ─ Waiting state ─ */
+    .waiting-msg {
+      font-size: .8125rem; color: rgba(255,255,255,.35);
+      text-align: center; margin-top: .5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <p class="topbar-lesson" id="topbarLesson">Conectando...</p>
+    <div class="topbar-right">
+      <span class="slide-info" id="slideInfo"></span>
+      <span class="student-name-pill" id="namePill">—</span>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <div class="stage">
+    <div class="viewer" id="viewer">
+
+      <!-- Loading/waiting state -->
+      <div class="viewer-state" id="viewerState">
+        <div class="spinner" style="border-color:rgba(255,255,255,.1);border-top-color:var(--laranja);width:48px;height:48px;"></div>
+        <p id="stateMsg">Conectando à sala...</p>
+      </div>
+
+      <canvas id="pdfCanvas"></canvas>
+      <iframe id="htmlFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+      <canvas id="drawCanvas"></canvas>
+
+      <!-- Quiz overlay -->
+      <div class="quiz-overlay" id="quizOverlay">
+        <div class="quiz-card">
+          <div class="quiz-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Quiz ao vivo
+          </div>
+          <p class="quiz-question" id="quizQuestion">—</p>
+          <div class="quiz-options" id="quizOptions"></div>
+          <div class="result-card" id="resultCard">
+            <div class="result-icon" id="resultIcon"></div>
+            <p class="result-text" id="resultText"></p>
+            <p class="result-sub" id="resultSub"></p>
+          </div>
+          <p class="waiting-msg hidden" id="waitingMsg">Aguarde o professor encerrar o quiz...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF.js & Socket.io -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // ─── Params ────────────────────────────────────────────────────────────────
+    const params   = new URLSearchParams(location.search);
+    const roomCode = params.get('sala')?.toUpperCase();
+    const myName   = params.get('nome') || 'Aluno';
+    if (!roomCode) location.href = 'aluno.html';
+
+    document.getElementById('namePill').textContent = myName;
+
+    // ─── State ─────────────────────────────────────────────────────────────────
+    let pdfDoc = null;
+    let lessonType = 'pdf';
+    let lessonFilename = '';
+    let answered = false;
+    let currentQuiz = null;
+    let myAnswer = null;
+
+    // Drawing
+    const drawCanvas = document.getElementById('drawCanvas');
+    const drawCtx = drawCanvas.getContext('2d');
+    let drawLastX = 0, drawLastY = 0;
+    let drawPending = null;
+
+    // ─── Socket ────────────────────────────────────────────────────────────────
+    const socket = io();
+    socket.emit('student:join', { roomCode, name: myName });
+
+    socket.on('join:success', ({ currentSlide, totalSlides, lesson, activeQuiz }) => {
+      document.getElementById('topbarLesson').textContent = lesson.name;
+      lessonType = lesson.type;
+      lessonFilename = lesson.filename;
+      loadLesson(lesson.filename, lesson.type, currentSlide, totalSlides);
+      if (activeQuiz) showQuiz(activeQuiz);
+    });
+
+    socket.on('join:error', (msg) => {
+      document.getElementById('stateMsg').textContent = msg;
+      document.getElementById('stateMsg').style.color = '#ef4444';
+    });
+
+    socket.on('slide:changed', ({ slide, total }) => {
+      document.getElementById('viewerState').style.display = 'none';
+      updateSlide(slide, total);
+    });
+
+    socket.on('quiz:launched', (quiz) => {
+      currentQuiz = quiz;
+      answered = false;
+      myAnswer = null;
+      showQuiz(quiz);
+    });
+
+    socket.on('quiz:answered', ({ correct }) => {
+      showResult(correct);
+    });
+
+    socket.on('quiz:ended', ({ correctAnswer, breakdown }) => {
+      document.getElementById('waitingMsg').classList.add('hidden');
+      if (!answered) {
+        const resultCard = document.getElementById('resultCard');
+        resultCard.style.display = 'block';
+        document.getElementById('resultIcon').textContent = '⏱';
+        document.getElementById('resultText').textContent = 'Tempo esgotado';
+        document.getElementById('resultSub').textContent = `A resposta correta era: ${correctAnswer}`;
+        revealAnswers(correctAnswer);
+      }
+      setTimeout(() => hideQuiz(), 3500);
+    });
+
+    socket.on('draw:data', (data) => {
+      const w = drawCanvas.width, h = drawCanvas.height;
+      if (data.type === 'start') {
+        drawPending = { x: data.x * w, y: data.y * h, color: data.color, size: data.size, mode: data.mode };
+      } else if (data.type === 'move' && drawPending) {
+        const x2 = data.x * w, y2 = data.y * h;
+        applyDraw(drawPending.x, drawPending.y, x2, y2, drawPending.color, drawPending.size, drawPending.mode);
+        drawPending.x = x2; drawPending.y = y2;
+      }
+    });
+
+    socket.on('draw:clear', () => {
+      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    });
+
+    socket.on('session:ended', () => {
+      document.getElementById('viewerState').style.display = 'flex';
+      document.getElementById('stateMsg').textContent = 'O professor encerrou a sessão.';
+    });
+
+    // ─── Lesson loader ─────────────────────────────────────────────────────────
+    async function loadLesson(filename, type, startSlide, totalSlides) {
+      if (type === 'pdf') {
+        document.getElementById('htmlFrame').style.display = 'none';
+        pdfDoc = await pdfjsLib.getDocument(`/uploads/${filename}`).promise;
+        await renderPage(startSlide + 1, totalSlides || pdfDoc.numPages);
+      } else {
+        document.getElementById('pdfCanvas').style.display = 'none';
+        const frame = document.getElementById('htmlFrame');
+        frame.style.display = 'block';
+        frame.src = `/uploads/${filename}`;
+        frame.onload = () => { document.getElementById('viewerState').style.display = 'none'; };
+        document.getElementById('slideInfo').textContent = '';
+      }
+    }
+
+    async function renderPage(pageNum, total) {
+      if (!pdfDoc) return;
+      const page = await pdfDoc.getPage(pageNum);
+      const canvas = document.getElementById('pdfCanvas');
+      const ctx = canvas.getContext('2d');
+      const viewer = document.getElementById('viewer');
+
+      const vw = viewer.clientWidth;
+      const vh = viewer.clientHeight;
+      const vp0 = page.getViewport({ scale: 1 });
+      const scale = Math.min(vw / vp0.width, vh / vp0.height) * 0.97;
+      const vp = page.getViewport({ scale });
+
+      canvas.width = vp.width;
+      canvas.height = vp.height;
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+      // Sync draw canvas
+      drawCanvas.width = vw;
+      drawCanvas.height = vh;
+
+      document.getElementById('viewerState').style.display = 'none';
+      canvas.style.display = 'block';
+      document.getElementById('slideInfo').textContent = total ? `${pageNum} / ${total}` : '';
+    }
+
+    async function updateSlide(slide, total) {
+      if (lessonType === 'pdf' && pdfDoc) {
+        await renderPage(slide + 1, total);
+      }
+      if (total) document.getElementById('slideInfo').textContent = `${slide + 1} / ${total}`;
+    }
+
+    // ─── Drawing ───────────────────────────────────────────────────────────────
+    function applyDraw(x1, y1, x2, y2, color, size, mode) {
+      drawCtx.lineWidth = size;
+      drawCtx.lineCap = 'round';
+      drawCtx.lineJoin = 'round';
+      if (mode === 'eraser') {
+        drawCtx.globalCompositeOperation = 'destination-out';
+        drawCtx.strokeStyle = 'rgba(0,0,0,1)';
+        drawCtx.lineWidth = size * 4;
+      } else {
+        drawCtx.globalCompositeOperation = 'source-over';
+        drawCtx.strokeStyle = color;
+      }
+      drawCtx.beginPath();
+      drawCtx.moveTo(x1, y1);
+      drawCtx.lineTo(x2, y2);
+      drawCtx.stroke();
+    }
+
+    // ─── Quiz ──────────────────────────────────────────────────────────────────
+    const LETTERS = ['A', 'B', 'C', 'D'];
+
+    function showQuiz(quiz) {
+      currentQuiz = quiz;
+      answered = false;
+      document.getElementById('quizQuestion').textContent = quiz.question;
+
+      const optContainer = document.getElementById('quizOptions');
+      optContainer.innerHTML = quiz.options.map((opt, i) => `
+        <button class="option-btn" data-answer="${opt}" onclick="selectAnswer(this, '${opt.replace(/'/g, "\\'")}')">
+          <div class="option-letter-badge">${LETTERS[i]}</div>
+          <span class="option-text">${opt}</span>
+        </button>
+      `).join('');
+
+      document.getElementById('resultCard').style.display = 'none';
+      document.getElementById('waitingMsg').classList.add('hidden');
+      document.getElementById('quizOverlay').style.display = 'flex';
+    }
+
+    function selectAnswer(btn, answer) {
+      if (answered) return;
+      answered = true;
+      myAnswer = answer;
+
+      // Mark selected
+      document.querySelectorAll('.option-btn').forEach(b => {
+        b.disabled = true;
+        if (b === btn) b.classList.add('selected');
+      });
+
+      socket.emit('quiz:answer', { answer });
+      document.getElementById('waitingMsg').classList.remove('hidden');
+    }
+
+    function showResult(correct) {
+      const resultCard = document.getElementById('resultCard');
+      resultCard.style.display = 'block';
+      if (correct) {
+        document.getElementById('resultIcon').textContent = '🎉';
+        document.getElementById('resultText').textContent = 'Resposta correta!';
+        document.getElementById('resultSub').textContent = 'Muito bem! Continue assim.';
+        resultCard.style.background = 'rgba(34,197,94,.1)';
+        resultCard.style.border = '1.5px solid rgba(34,197,94,.3)';
+      } else {
+        document.getElementById('resultIcon').textContent = '❌';
+        document.getElementById('resultText').textContent = 'Resposta incorreta';
+        document.getElementById('resultSub').textContent = 'Não desanime, continue tentando!';
+        resultCard.style.background = 'rgba(239,68,68,.1)';
+        resultCard.style.border = '1.5px solid rgba(239,68,68,.3)';
+      }
+    }
+
+    function revealAnswers(correctAnswer) {
+      document.querySelectorAll('.option-btn').forEach(btn => {
+        const ans = btn.dataset.answer;
+        if (ans === correctAnswer) btn.classList.add('correct');
+        else if (ans === myAnswer) btn.classList.add('wrong');
+      });
+    }
+
+    function hideQuiz() {
+      document.getElementById('quizOverlay').style.display = 'none';
+      currentQuiz = null;
+    }
+  </script>
+</body>
+</html>

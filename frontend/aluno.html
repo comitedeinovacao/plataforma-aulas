@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar na Aula — Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: var(--azul);
+      background-image:
+        radial-gradient(circle at 25% 55%, rgba(247,148,29,.1) 0%, transparent 55%),
+        radial-gradient(circle at 75% 20%, rgba(247,148,29,.1) 0%, transparent 55%);
+    }
+    .bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(90deg, transparent 49.5%, rgba(247,148,29,.05) 49.5%, rgba(247,148,29,.05) 50.5%, transparent 50.5%),
+        linear-gradient(0deg,  transparent 49.5%, rgba(247,148,29,.05) 49.5%, rgba(247,148,29,.05) 50.5%, transparent 50.5%);
+      background-size: 80px 80px;
+    }
+
+    .join-card {
+      position: relative; z-index: 1;
+      background: rgba(255,255,255,.97);
+      border-radius: 18px;
+      box-shadow: 0 24px 72px rgba(0,0,0,.3);
+      padding: 2.5rem 2.25rem;
+      width: 100%;
+      max-width: 420px;
+      margin: 1rem;
+    }
+
+    .join-header { text-align: center; margin-bottom: 2rem; }
+    .join-logo { height: 42px; margin: 0 auto 1rem; }
+    .join-title { font-size: 1.25rem; font-weight: 800; color: var(--azul); }
+    .join-subtitle { font-size: 0.8125rem; color: var(--texto-med); margin-top: 0.25rem; }
+
+    .join-form { display: flex; flex-direction: column; gap: 1.125rem; }
+
+    .code-input {
+      font-size: 1.75rem !important;
+      font-weight: 800 !important;
+      letter-spacing: .15em !important;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .join-btn { width: 100%; padding: 1rem; font-size: 1rem; margin-top: 0.5rem; }
+
+    .error-banner {
+      background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm);
+      color: #dc2626; font-size: 0.875rem; font-weight: 500;
+      padding: 0.75rem 1rem; display: none; text-align: center;
+    }
+
+    .room-info {
+      background: var(--gelo); border-radius: var(--radius-sm);
+      padding: 0.875rem 1rem; display: none; align-items: center; gap: 0.75rem;
+    }
+    .room-info-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--azul); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .room-info-name { font-size: 0.9rem; font-weight: 700; color: var(--azul); }
+    .room-info-sub  { font-size: 0.75rem; color: var(--texto-med); }
+
+    .professor-link { text-align: center; margin-top: 1.5rem; font-size: 0.8125rem; color: var(--texto-med); }
+    .professor-link a { color: var(--azul); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  <div class="join-card">
+    <div class="join-header">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Senac_logo.svg/960px-Senac_logo.svg.png"
+           alt="Senac" class="join-logo">
+      <p class="join-title">Entrar na Sala de Aula</p>
+      <p class="join-subtitle">Nenhum cadastro necessário</p>
+    </div>
+
+    <form class="join-form" id="joinForm">
+      <div class="form-group">
+        <label class="label" for="roomCode">Código da sala</label>
+        <input type="text" id="roomCode" class="input code-input"
+               placeholder="EX: ABC123"
+               maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+
+      <!-- Room preview -->
+      <div class="room-info" id="roomInfo">
+        <div class="room-info-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <p class="room-info-name" id="roomLessonName">—</p>
+          <p class="room-info-sub" id="roomStudentCount">—</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="label" for="studentName">Seu nome completo</label>
+        <input type="text" id="studentName" class="input"
+               placeholder="Ex: Maria Souza" autocomplete="name">
+      </div>
+
+      <div class="error-banner" id="errorBanner">Sala não encontrada. Verifique o código.</div>
+
+      <button type="submit" class="btn btn-primary join-btn" id="joinBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Entrar na aula
+      </button>
+    </form>
+
+    <p class="professor-link">
+      É professor? <a href="login.html">Fazer login</a>
+    </p>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const codeInput = document.getElementById('roomCode');
+    const nameInput = document.getElementById('studentName');
+    const roomInfo  = document.getElementById('roomInfo');
+    const errorBnr  = document.getElementById('errorBanner');
+
+    // Pre-fill sala from URL param
+    const params = new URLSearchParams(location.search);
+    if (params.get('sala')) {
+      codeInput.value = params.get('sala').toUpperCase();
+      checkRoom();
+    }
+
+    // Auto-uppercase + check room
+    codeInput.addEventListener('input', () => {
+      codeInput.value = codeInput.value.toUpperCase();
+      if (codeInput.value.length === 6) checkRoom();
+      else { roomInfo.style.display = 'none'; errorBnr.style.display = 'none'; }
+    });
+
+    async function checkRoom() {
+      const code = codeInput.value.trim();
+      if (code.length !== 6) return;
+      try {
+        const res = await fetch(`/api/sessions/${code}`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('roomLessonName').textContent = data.lessonName;
+          document.getElementById('roomStudentCount').textContent = `${data.studentCount} aluno${data.studentCount !== 1 ? 's' : ''} conectado${data.studentCount !== 1 ? 's' : ''}`;
+          roomInfo.style.display = 'flex';
+          errorBnr.style.display = 'none';
+        } else {
+          roomInfo.style.display = 'none';
+          errorBnr.style.display = 'block';
+          errorBnr.textContent = 'Sala não encontrada. Verifique o código.';
+        }
+      } catch {}
+    }
+
+    document.getElementById('joinForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = codeInput.value.trim().toUpperCase();
+      const name = nameInput.value.trim();
+      if (!code || code.length !== 6) { errorBnr.textContent = 'Digite o código de 6 caracteres.'; errorBnr.style.display = 'block'; return; }
+      if (!name) { nameInput.focus(); return; }
+      location.href = `sala.html?sala=${code}&nome=${encodeURIComponent(name)}`;
+    });
+  </script>
+</body>
+</html>

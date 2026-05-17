@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="0; url=aluno.html">
+  <title>Plataforma Senac</title>
+</head>
+<body>
+  <script>
+    // Redireciona professor autenticado para biblioteca, aluno para página de entrada
+    fetch('/api/me').then(r => r.json()).then(d => {
+      location.href = d.authenticated ? 'biblioteca.html' : 'aluno.html';
+    }).catch(() => { location.href = 'aluno.html'; });
+  </script>
+</body>
+</html>
