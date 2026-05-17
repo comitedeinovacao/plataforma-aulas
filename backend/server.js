@@ -112,7 +112,7 @@ const upload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, ['.pdf', '.html', '.htm'].includes(ext));
   },
-  limits: { fileSize: 200 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
