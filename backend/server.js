@@ -11,9 +11,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// Necessário para sessões funcionarem atrás do proxy do Render/Heroku
+app.set('trust proxy', 1);
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || 'senac2025';
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 [DATA_DIR, UPLOADS_DIR].forEach(d => !fs.existsSync(d) && fs.mkdirSync(d, { recursive: true }));
@@ -47,7 +51,11 @@ app.use(session({
   secret: 'plataforma-aulas-senac-secret-2025',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }
+  cookie: {
+    maxAge: 8 * 60 * 60 * 1000,
+    secure: isProd,          // HTTPS obrigatório em produção
+    sameSite: isProd ? 'none' : 'lax',
+  },
 }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/uploads', express.static(UPLOADS_DIR));
