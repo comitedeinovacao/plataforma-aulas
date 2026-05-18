@@ -169,6 +169,7 @@ app.post('/api/lessons/upload', auth, upload.single('file'), async (req, res) =>
       original_name: req.file.originalname,
       uploaded_at: new Date().toISOString(),
       size: req.file.size,
+      bloco: (req.body.bloco || '').trim(),
     };
 
     if (supabase) {
@@ -192,6 +193,27 @@ app.delete('/api/lessons/:id', auth, async (req, res) => {
     const ok = await deleteLesson(req.params.id);
     if (!ok) return res.status(404).json({ error: 'Não encontrada' });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/lessons/:id', auth, express.json(), async (req, res) => {
+  const bloco = (req.body.bloco ?? '').trim();
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('lessons').update({ bloco }).eq('id', req.params.id).select().single();
+      if (error) throw error;
+      res.json(data);
+    } else {
+      const all = getLocalLessons();
+      const idx = all.findIndex(l => l.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Não encontrada' });
+      all[idx].bloco = bloco;
+      saveLocalLessons(all);
+      res.json(all[idx]);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
