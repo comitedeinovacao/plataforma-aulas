@@ -251,6 +251,37 @@
     .rank-label-res { font-size:.78rem; color:rgba(255,255,255,.85); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .rank-bar-wrap { width:52px; height:5px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; flex-shrink:0; }
     .rank-bar { height:100%; background:var(--laranja); border-radius:3px; transition:width .5s; }
+
+    /* ─── Game overlay (full-screen gamification) ─────────────────────────── */
+    #gameOverlay {
+      position: absolute; inset: 0 0 0 52px; z-index: 250;
+      background: #0d1426; display: none; flex-direction: column; overflow: hidden;
+    }
+    #gameOverlay.active { display: flex; }
+    .go-header {
+      background: var(--azul); height: 52px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,.4);
+    }
+    .go-badge-pill {
+      background: rgba(247,148,29,.2); border: 1px solid rgba(247,148,29,.4);
+      border-radius: 100px; padding: .3rem .875rem;
+      color: var(--laranja); font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0; white-space: nowrap;
+    }
+    .go-title {
+      flex: 1; font-size: .9rem; font-weight: 700; color: #fff;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .go-stats-text { font-size: .8rem; color: rgba(255,255,255,.5); flex-shrink: 0; white-space: nowrap; }
+    .go-end-btn {
+      background: rgba(239,68,68,.15); border: 1.5px solid rgba(239,68,68,.4);
+      border-radius: 8px; padding: .4rem 1rem;
+      color: #ef4444; font-size: .8rem; font-weight: 700;
+      cursor: pointer; flex-shrink: 0; font-family: inherit; transition: var(--ease); white-space: nowrap;
+    }
+    .go-end-btn:hover { background: rgba(239,68,68,.3); }
+    .go-body { flex: 1; overflow: hidden; padding: 1.5rem; display: flex; min-height: 0; }
   </style>
 </head>
 <body>
@@ -504,6 +535,17 @@
     </div>
   </div>
 
+  <!-- ── Game overlay (full-screen gamification display) ───────────────── -->
+  <div id="gameOverlay">
+    <div class="go-header">
+      <span class="go-badge-pill" id="goBadge">Quiz</span>
+      <span class="go-title" id="goQuestion"></span>
+      <span class="go-stats-text" id="goStats"></span>
+      <button class="go-end-btn" id="goEndBtn">⏹ Encerrar</button>
+    </div>
+    <div class="go-body" id="goBody"></div>
+  </div>
+
 </div><!-- /stage -->
 
 <!-- ── QR fullscreen modal ─────────────────────────────────────────────── -->
@@ -547,6 +589,13 @@ let quizOpts    = ['', '', '', ''];
 let correctAns  = null;
 const LETTERS   = ['A','B','C','D'];
 
+// Per-slide drawing layers
+const drawLayers     = {};
+let currentDrawSlide = null;
+
+// Game overlay
+let overlayEndFn = null;
+
 // ─── DOM refs ──────────────────────────────────────────────────────────────
 const viewer     = document.getElementById('viewer');
 const pdfCanvas  = document.getElementById('pdfCanvas');
@@ -573,10 +622,12 @@ socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
 window.addEventListener('message', (e) => {
   if (e.data?.type === 'slideChange' && lessonType === 'html') {
     const { slide, total } = e.data;
+    saveDrawLayer();
     document.getElementById('slideCounter').textContent = `${slide + 1} / ${total}`;
     document.getElementById('slideOverlay').textContent = `${slide + 1} / ${total}`;
     document.getElementById('slideNav').style.visibility = 'visible';
     socket.emit('slide:change', { slide, total });
+    restoreDrawLayer(`html-${slide}`);
   }
 });
 
@@ -590,11 +641,13 @@ socket.on('student:left', ({ name, count }) => {
   toast(`${name} saiu`, 'inf');
 });
 
-socket.on('quiz:results', ({ breakdown, answered, correct, totalStudents }) => {
+socket.on('quiz:results', ({ breakdown, order, answered, correct, totalStudents }) => {
   const pct = answered > 0 ? Math.round(correct / answered * 100) : 0;
   document.getElementById('resAnswered').textContent = `${answered}/${totalStudents}`;
   document.getElementById('resPct').textContent = pct + '%';
   renderResultBars(breakdown, answered);
+  document.getElementById('goStats').textContent = `${answered}/${totalStudents} responderam · ${pct}% acertos`;
+  renderGameQuiz(breakdown, order || [], answered);
 });
 socket.on('error', msg => toast(msg, 'err'));
 
@@ -630,6 +683,7 @@ async function loadLesson(url, type, startSlide) {
 }
 
 async function renderPage(n) {
+  saveDrawLayer();
   const page = await pdfDoc.getPage(n);
 
   // Use viewer bounding rect for accurate size
@@ -654,6 +708,7 @@ async function renderPage(n) {
   document.getElementById('viewerState').style.display = 'none';
   pdfCanvas.style.display = 'block';
   updateCounter();
+  restoreDrawLayer(`pdf-${n}`);
   socket.emit('slide:change', { slide: n - 1, total: totalPages });
 }
 
@@ -755,6 +810,7 @@ function setDrawSize(s) { drawSize = s; }
 
 document.getElementById('clearDrawBtn').addEventListener('click', () => {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  if (currentDrawSlide !== null) delete drawLayers[currentDrawSlide];
   socket.emit('draw:clear');
 });
 
@@ -884,9 +940,13 @@ document.getElementById('launchQuizBtn').addEventListener('click', () => {
   document.getElementById('resPct').textContent = '0%';
   renderResultBars({}, 0);
   openPanel('quiz');
+  showGameOverlay('quiz', '🎯 Quiz ao vivo', question);
+  overlayEndFn = () => document.getElementById('endQuizBtn').click();
+  renderGameQuiz({}, [], 0);
 });
 
 document.getElementById('endQuizBtn').addEventListener('click', () => {
+  hideGameOverlay();
   socket.emit('quiz:end');
   activeQuiz = null;
   document.getElementById('quizResultsPanel').classList.add('hidden');
@@ -925,9 +985,13 @@ document.getElementById('launchWcBtn').addEventListener('click', () => {
   document.getElementById('wcCount').textContent = '0 respostas';
   hidePollTabs();
   openPanel('quiz');
+  showGameOverlay('wordcloud', '☁ Nuvem de Palavras', question);
+  overlayEndFn = () => document.getElementById('endWcBtn').click();
+  renderGameWordCloud([]);
 });
 
 document.getElementById('endWcBtn').addEventListener('click', () => {
+  hideGameOverlay();
   socket.emit('poll:end');
   document.getElementById('wordcloudResults').classList.add('hidden');
   document.getElementById('wordcloudCreator').classList.remove('hidden');
@@ -965,9 +1029,13 @@ document.getElementById('launchMuralBtn').addEventListener('click', () => {
   document.getElementById('muralCount').textContent = '0 respostas';
   hidePollTabs();
   openPanel('quiz');
+  showGameOverlay('mural', '💬 Mural de Frases', question);
+  overlayEndFn = () => document.getElementById('endMuralBtn').click();
+  renderGameMural([]);
 });
 
 document.getElementById('endMuralBtn').addEventListener('click', () => {
+  hideGameOverlay();
   socket.emit('poll:end');
   document.getElementById('muralResults').classList.add('hidden');
   document.getElementById('muralCreator').classList.remove('hidden');
@@ -1026,9 +1094,13 @@ document.getElementById('launchRankingBtn').addEventListener('click', () => {
   document.getElementById('rankCount').textContent = '0 respostas';
   hidePollTabs();
   openPanel('quiz');
+  showGameOverlay('ranking', '↕ Ranking', question);
+  overlayEndFn = () => document.getElementById('endRankingBtn').click();
+  renderGameRanking([], items);
 });
 
 document.getElementById('endRankingBtn').addEventListener('click', () => {
+  hideGameOverlay();
   socket.emit('poll:end');
   document.getElementById('rankingResults').classList.add('hidden');
   document.getElementById('rankingCreator').classList.remove('hidden');
@@ -1061,9 +1133,9 @@ function renderRankingResults(responses, items) {
 
 // ─── Poll results dispatch ───────────────────────────────────────────────────
 socket.on('poll:results', ({ responses, poll }) => {
-  if (poll.type === 'wordcloud') renderWordCloud(responses);
-  else if (poll.type === 'mural') renderMural(responses);
-  else if (poll.type === 'ranking') renderRankingResults(responses, poll.items);
+  if (poll.type === 'wordcloud') { renderWordCloud(responses); renderGameWordCloud(responses); }
+  else if (poll.type === 'mural') { renderMural(responses); renderGameMural(responses); }
+  else if (poll.type === 'ranking') { renderRankingResults(responses, poll.items); renderGameRanking(responses, poll.items); }
 });
 
 function renderResultBars(breakdown, answered) {
@@ -1083,6 +1155,158 @@ function renderResultBars(breakdown, answered) {
       </div>
     </div>`;
   }).join('');
+}
+
+// ─── Per-slide drawing layers ───────────────────────────────────────────────
+function saveDrawLayer() {
+  if (currentDrawSlide === null) return;
+  drawLayers[currentDrawSlide] = drawCanvas.toDataURL();
+}
+
+function restoreDrawLayer(key) {
+  currentDrawSlide = key;
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  if (drawLayers[key]) {
+    const img = new Image();
+    img.onload = () => drawCtx.drawImage(img, 0, 0, drawCanvas.width, drawCanvas.height);
+    img.src = drawLayers[key];
+  }
+}
+
+// ─── Game overlay ───────────────────────────────────────────────────────────
+function showGameOverlay(type, badge, question) {
+  document.getElementById('goBadge').textContent = badge;
+  document.getElementById('goQuestion').textContent = question;
+  document.getElementById('goStats').textContent = '';
+  document.getElementById('goBody').innerHTML = '';
+  document.getElementById('gameOverlay').classList.add('active');
+}
+
+function hideGameOverlay() {
+  document.getElementById('gameOverlay').classList.remove('active');
+  overlayEndFn = null;
+}
+
+document.getElementById('goEndBtn').addEventListener('click', () => {
+  if (overlayEndFn) overlayEndFn();
+});
+
+function renderGameQuiz(breakdown, order, answered) {
+  if (!activeQuiz) return;
+  const medals = ['🥇','🥈','🥉'];
+  const correctOnes = order.filter(s => s.correct);
+  const wrongOnes   = order.filter(s => !s.correct);
+  const sorted = [...correctOnes, ...wrongOnes];
+
+  const barsHtml = activeQuiz.options.map(opt => {
+    const count  = breakdown[opt] || 0;
+    const pct    = answered > 0 ? Math.round(count / answered * 100) : 0;
+    const isCorr = opt === activeQuiz.correctAnswer;
+    return `<div style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
+        <span style="font-size:.95rem;font-weight:700;color:rgba(255,255,255,.9)">${opt}${isCorr ? ' ✓' : ''}</span>
+        <span style="font-size:.85rem;color:rgba(255,255,255,.4)">${count}</span>
+      </div>
+      <div style="background:rgba(255,255,255,.1);border-radius:6px;height:18px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;border-radius:6px;background:${isCorr ? '#22c55e' : 'var(--laranja)'};transition:width .5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const studentsHtml = sorted.length
+    ? sorted.map((s, i) => `
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.625rem .875rem;border-radius:10px;background:rgba(255,255,255,.05);margin-bottom:.4rem">
+          <div style="font-size:1.1rem;width:28px;text-align:center">${medals[i] || (i+1)+'°'}</div>
+          <div style="flex:1;font-size:.875rem;font-weight:600;color:rgba(255,255,255,.9)">${s.name}</div>
+          <span style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:100px;${s.correct ? 'background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#22c55e' : 'background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444'}">
+            ${s.correct ? '✓ acertou' : '✗ errou'}
+          </span>
+        </div>`).join('')
+    : '<p style="color:rgba(255,255,255,.25);font-size:.875rem;text-align:center;padding:2rem 0">Aguardando respostas...</p>';
+
+  document.getElementById('goBody').innerHTML = `
+    <div style="display:flex;gap:1.5rem;width:100%;height:100%;min-height:0">
+      <div style="flex:1;display:flex;flex-direction:column;overflow-y:auto">
+        <p style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:.75rem">Respostas por opção</p>
+        ${barsHtml}
+      </div>
+      <div style="width:290px;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto">
+        <p style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:.75rem">Ranking dos alunos</p>
+        ${studentsHtml}
+      </div>
+    </div>`;
+}
+
+function renderGameWordCloud(responses) {
+  const freq = {};
+  responses.forEach(r => {
+    const w = String(r.response).trim().toLowerCase();
+    freq[w] = (freq[w] || 0) + 1;
+  });
+  const maxF = Math.max(...Object.values(freq), 1);
+  const cloudsHtml = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .map(([w, n], i) => {
+      const size = (1.5 + (n / maxF) * 2.5).toFixed(2);
+      return `<span style="font-size:${size}rem;font-weight:800;color:${WC_COLORS[i % WC_COLORS.length]};line-height:1.2;transition:all .4s">${w}</span>`;
+    }).join('');
+
+  document.getElementById('goBody').innerHTML = `
+    <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:1.5rem;min-height:0">
+      <div style="flex:1;width:100%;display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;justify-content:center;overflow-y:auto;padding:.5rem">
+        ${cloudsHtml || '<span style="color:rgba(255,255,255,.2);font-size:1rem">Aguardando respostas...</span>'}
+      </div>
+      <p style="font-size:.8rem;color:rgba(255,255,255,.35);flex-shrink:0">${responses.length} resposta${responses.length !== 1 ? 's' : ''}</p>
+    </div>`;
+}
+
+function renderGameMural(responses) {
+  const cardsHtml = responses.map((r, i) => {
+    const s = MURAL_SCHEMES[i % MURAL_SCHEMES.length];
+    return `<div style="background:${s.bg};border-left:4px solid ${s.border};border-radius:12px;padding:1rem 1.25rem;animation:cardIn .3s ease">
+      <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem;color:${s.border};opacity:.8">${r.name}</div>
+      <div style="font-size:1rem;color:rgba(255,255,255,.9);line-height:1.5">${r.response}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('goBody').innerHTML = `
+    <div style="width:100%;display:flex;flex-direction:column;gap:1rem;min-height:0">
+      <p style="font-size:.7rem;color:rgba(255,255,255,.3);text-align:center;flex-shrink:0">${responses.length} resposta${responses.length !== 1 ? 's' : ''}</p>
+      <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.875rem;overflow-y:auto;align-content:start">
+        ${cardsHtml || '<p style="color:rgba(255,255,255,.25);grid-column:1/-1;text-align:center;padding:2rem">Aguardando respostas...</p>'}
+      </div>
+    </div>`;
+}
+
+function renderGameRanking(responses, items) {
+  const scores = {};
+  items.forEach(it => { scores[it] = 0; });
+  responses.forEach(r => {
+    const order = Array.isArray(r.response) ? r.response : items;
+    order.forEach((it, pos) => { if (scores[it] !== undefined) scores[it] += pos; });
+  });
+  const sorted = items.slice().sort((a, b) => scores[a] - scores[b]);
+  const maxScore = responses.length * (items.length - 1) || 1;
+  const medals = ['🥇','🥈','🥉'];
+
+  const itemsHtml = sorted.map((it, i) => {
+    const pct = Math.max(0, Math.round(100 - (scores[it] / maxScore) * 100));
+    return `<div style="display:flex;align-items:center;gap:1rem;padding:.875rem 1.25rem;background:rgba(255,255,255,.05);border-radius:12px">
+      <div style="font-size:1.5rem;width:40px;text-align:center">${medals[i] || (i+1)+'°'}</div>
+      <div style="flex:1;font-size:1rem;font-weight:600;color:rgba(255,255,255,.9)">${it}</div>
+      <div style="width:120px;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--laranja);border-radius:4px;transition:width .6s"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('goBody').innerHTML = `
+    <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:1rem;overflow-y:auto">
+      <div style="width:100%;max-width:680px;display:flex;flex-direction:column;gap:.75rem">
+        ${itemsHtml || '<p style="color:rgba(255,255,255,.25);text-align:center;padding:2rem">Aguardando respostas...</p>'}
+      </div>
+      <p style="font-size:.8rem;color:rgba(255,255,255,.35)">${responses.length} resposta${responses.length !== 1 ? 's' : ''}</p>
+    </div>`;
 }
 </script>
 </body>

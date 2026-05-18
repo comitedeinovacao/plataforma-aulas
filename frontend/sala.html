@@ -159,6 +159,7 @@
       border: 1.5px solid rgba(247,148,29,.3);
       border-radius: 16px; padding: 2rem;
       width: 100%; max-width: 520px;
+      max-height: 88vh; overflow-y: auto;
       box-shadow: 0 24px 64px rgba(0,0,0,.5);
       animation: modalIn .3s ease;
     }
@@ -271,6 +272,13 @@
             <div class="poll-sent-icon">✅</div>
             <p class="poll-sent-text">Resposta enviada!</p>
             <p class="poll-sent-sub">Aguarde o professor encerrar a enquete.</p>
+          </div>
+
+          <!-- Live results (shown after submitting) -->
+          <div id="pollLiveResults" style="display:none;margin-top:1.25rem;border-top:1px solid rgba(255,255,255,.08);padding-top:1rem;">
+            <p style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:.75rem;">Participações da turma</p>
+            <div id="pollLiveContent"></div>
+            <p style="font-size:.7rem;color:rgba(255,255,255,.3);text-align:center;margin-top:.625rem;" id="pollLiveCount"></p>
           </div>
         </div>
       </div>
@@ -579,6 +587,8 @@
 
     function hidePollOverlay() {
       document.getElementById('pollOverlay').style.display = 'none';
+      document.getElementById('pollLiveResults').style.display = 'none';
+      document.getElementById('pollLiveContent').innerHTML = '';
       currentPoll = null;
     }
 
@@ -587,6 +597,7 @@
       document.getElementById('pollMuralInput').style.display = 'none';
       document.getElementById('pollRankInput').style.display  = 'none';
       document.getElementById('pollSent').style.display       = 'block';
+      document.getElementById('pollLiveResults').style.display = 'block';
     }
 
     function renderRankSort() {
@@ -626,6 +637,72 @@
       socket.emit('poll:respond', { response: rankOrder });
       document.getElementById('rankSendBtn').disabled = true;
     });
+
+    // Live poll results (shown after student submits)
+    const WC_COLORS_S = ['var(--laranja)','#22c55e','#44BBFF','#FFE033','#FF88AA','#C084FC'];
+    const MURAL_SCHEMES_S = [
+      { bg:'rgba(247,148,29,.12)', border:'#F7941D' },
+      { bg:'rgba(18,163,184,.12)', border:'#12A3B8' },
+      { bg:'rgba(34,197,94,.12)',  border:'#22c55e' },
+      { bg:'rgba(99,102,241,.12)', border:'#818cf8' },
+    ];
+
+    socket.on('poll:results', ({ responses, poll }) => {
+      if (!pollAnswered) return;
+      renderPollLiveResults(responses, poll);
+    });
+
+    function renderPollLiveResults(responses, poll) {
+      const container = document.getElementById('pollLiveContent');
+      const countEl   = document.getElementById('pollLiveCount');
+      countEl.textContent = `${responses.length} resposta${responses.length !== 1 ? 's' : ''}`;
+
+      if (poll.type === 'wordcloud') {
+        const freq = {};
+        responses.forEach(r => {
+          const w = String(r.response).trim().toLowerCase();
+          freq[w] = (freq[w] || 0) + 1;
+        });
+        const maxF = Math.max(...Object.values(freq), 1);
+        const html = Object.entries(freq)
+          .sort((a, b) => b[1] - a[1])
+          .map(([w, n], i) => {
+            const size = (0.85 + (n / maxF) * 0.9).toFixed(2);
+            return `<span style="font-size:${size}rem;font-weight:800;color:${WC_COLORS_S[i % WC_COLORS_S.length]};margin:3px 5px;display:inline-block">${w}</span>`;
+          }).join('');
+        container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${html}</div>`;
+
+      } else if (poll.type === 'mural') {
+        container.innerHTML = responses.map((r, i) => {
+          const s = MURAL_SCHEMES_S[i % MURAL_SCHEMES_S.length];
+          return `<div style="background:${s.bg};border-left:3px solid ${s.border};border-radius:8px;padding:8px 12px;margin-bottom:6px;">
+            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;opacity:.65;margin-bottom:3px;color:${s.border}">${r.name}</div>
+            <div style="font-size:.85rem;color:rgba(255,255,255,.9);">${r.response}</div>
+          </div>`;
+        }).join('');
+
+      } else if (poll.type === 'ranking') {
+        const scores = {};
+        poll.items.forEach(it => { scores[it] = 0; });
+        responses.forEach(r => {
+          const order = Array.isArray(r.response) ? r.response : poll.items;
+          order.forEach((it, pos) => { if (scores[it] !== undefined) scores[it] += pos; });
+        });
+        const sorted = poll.items.slice().sort((a, b) => scores[a] - scores[b]);
+        const maxS = responses.length * (poll.items.length - 1) || 1;
+        const medals = ['🥇','🥈','🥉'];
+        container.innerHTML = sorted.map((it, i) => {
+          const pct = Math.max(0, Math.round(100 - (scores[it] / maxS) * 100));
+          return `<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .875rem;background:rgba(255,255,255,.05);border-radius:8px;margin-bottom:.4rem;">
+            <span style="font-size:1rem;width:24px;text-align:center">${medals[i] || (i+1)+'°'}</span>
+            <span style="flex:1;font-size:.875rem;font-weight:600;color:rgba(255,255,255,.9)">${it}</span>
+            <div style="width:48px;height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:var(--laranja);border-radius:3px"></div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
   </script>
 </body>
 </html>

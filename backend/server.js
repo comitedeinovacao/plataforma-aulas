@@ -232,6 +232,7 @@ app.post('/api/sessions', auth, async (req, res) => {
     students: new Map(),
     activeQuiz: null,
     quizResults: {},
+    quizOrder: [],
     activePoll: null,
     pollResponses: [],
     teacherSocket: null,
@@ -304,6 +305,7 @@ io.on('connection', (socket) => {
     if (!s) return;
     s.activeQuiz = quiz;
     s.quizResults = {};
+    s.quizOrder = [];
     io.to(meta.roomCode).emit('quiz:launched', quiz);
   });
 
@@ -316,6 +318,7 @@ io.on('connection', (socket) => {
 
     const correct = answer === s.activeQuiz.correctAnswer;
     s.quizResults[meta.name] = { answer, correct };
+    s.quizOrder.push({ name: meta.name, answer, correct });
     socket.emit('quiz:answered', { correct });
 
     const results = Object.values(s.quizResults);
@@ -325,7 +328,9 @@ io.on('connection', (socket) => {
 
     if (s.teacherSocket) {
       io.to(s.teacherSocket).emit('quiz:results', {
-        results: s.quizResults, breakdown,
+        results: s.quizResults,
+        order: s.quizOrder,
+        breakdown,
         totalStudents: s.students.size,
         answered: results.length,
         correct: results.filter(r => r.correct).length,
@@ -351,6 +356,7 @@ io.on('connection', (socket) => {
     });
     s.activeQuiz = null;
     s.quizResults = {};
+    s.quizOrder = [];
   });
 
   // ── Enquetes avançadas (nuvem, mural, ranking) ──────────────────────────────
@@ -372,13 +378,12 @@ io.on('connection', (socket) => {
     if (s.pollResponses.find(r => r.name === meta.name)) return;
     s.pollResponses.push({ name: meta.name, response });
     socket.emit('poll:responded');
-    if (s.teacherSocket) {
-      io.to(s.teacherSocket).emit('poll:results', {
-        responses: s.pollResponses,
-        poll: s.activePoll,
-        totalStudents: s.students.size,
-      });
-    }
+    // Broadcast to whole room so students see live results after submitting
+    io.to(meta.roomCode).emit('poll:results', {
+      responses: s.pollResponses,
+      poll: s.activePoll,
+      totalStudents: s.students.size,
+    });
   });
 
   socket.on('poll:end', () => {
