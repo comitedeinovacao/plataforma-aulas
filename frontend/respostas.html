@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Respostas das Atividades — Senac</title>
+  <link rel="stylesheet" href="assets/senac.css">
+  <style>
+    body { background: #0a0e1a; min-height: 100vh; }
+
+    .topbar {
+      background: var(--azul); height: 52px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1.5rem; gap: 1rem; position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    }
+    .tb-left  { display: flex; align-items: center; gap: .75rem; }
+    .tb-right { display: flex; align-items: center; gap: .75rem; }
+    .topbar-title { font-size: .9rem; font-weight: 700; color: #fff; }
+    .room-chip {
+      background: rgba(247,148,29,.2); border: 1px solid rgba(247,148,29,.4);
+      border-radius: 100px; padding: .25rem .875rem;
+      color: var(--laranja); font-size: .78rem; font-weight: 800; letter-spacing: .08em;
+    }
+
+    .main { max-width: 860px; margin: 0 auto; padding: 2rem 1.25rem; }
+
+    .section-title {
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: rgba(255,255,255,.35); margin-bottom: .875rem;
+    }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex; gap: .625rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+    }
+    .filter-input {
+      background: rgba(255,255,255,.07); border: 1.5px solid rgba(255,255,255,.1);
+      border-radius: 8px; padding: .55rem .875rem;
+      font-family: inherit; font-size: .85rem; color: #fff; outline: none;
+      transition: border-color .2s; flex: 1; min-width: 160px;
+    }
+    .filter-input:focus { border-color: var(--laranja); }
+    .filter-input::placeholder { color: rgba(255,255,255,.3); }
+
+    /* Summary cards */
+    .stats { display: flex; gap: .875rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
+    .stat-card {
+      background: rgba(255,255,255,.05); border-radius: 10px;
+      padding: .875rem 1.25rem; flex: 1; min-width: 100px; text-align: center;
+    }
+    .stat-num { font-size: 1.75rem; font-weight: 800; color: var(--laranja); }
+    .stat-label { font-size: .65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: rgba(255,255,255,.35); margin-top: .2rem; }
+
+    /* Submission cards */
+    .sub-card {
+      background: #1a2035; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      margin-bottom: .875rem; overflow: hidden;
+      transition: border-color .2s;
+    }
+    .sub-card:hover { border-color: rgba(247,148,29,.3); }
+
+    .sub-header {
+      display: flex; align-items: center; gap: .875rem;
+      padding: .875rem 1.25rem; cursor: pointer;
+    }
+    .sub-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--azul);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .sub-info { flex: 1; min-width: 0; }
+    .sub-name { font-size: .9rem; font-weight: 700; color: #fff; }
+    .sub-meta { font-size: .72rem; color: rgba(255,255,255,.4); margin-top: .15rem; }
+    .sub-chevron {
+      color: rgba(255,255,255,.3); transition: transform .2s; flex-shrink: 0;
+    }
+    .sub-card.open .sub-chevron { transform: rotate(180deg); }
+
+    .sub-body {
+      display: none; padding: 0 1.25rem 1.25rem;
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .sub-card.open .sub-body { display: block; }
+
+    .field-row {
+      padding: .6rem 0; border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-num { font-size: .65rem; font-weight: 700; color: rgba(255,255,255,.3);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: .25rem; }
+    .field-val { font-size: .875rem; color: rgba(255,255,255,.85); line-height: 1.5; }
+    .field-val.empty { color: rgba(255,255,255,.2); font-style: italic; }
+
+    .check-section { margin-top: .75rem; }
+    .check-tag {
+      display: inline-flex; align-items: center; gap: .35rem;
+      background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3);
+      border-radius: 100px; padding: .2rem .625rem;
+      font-size: .72rem; font-weight: 600; color: #22c55e;
+      margin: .25rem .2rem 0 0;
+    }
+
+    .empty-state {
+      text-align: center; padding: 4rem 1rem;
+      color: rgba(255,255,255,.25);
+    }
+    .empty-state svg { opacity: .2; margin: 0 auto 1rem; display: block; }
+
+    .print-btn {
+      display: flex; align-items: center; gap: .5rem;
+    }
+
+    @media print {
+      .topbar, .filter-bar, .print-btn { display: none !important; }
+      body { background: #fff; }
+      .sub-card { border: 1px solid #ccc; margin-bottom: 1rem; break-inside: avoid; }
+      .sub-body { display: block !important; }
+      .sub-name, .field-val { color: #000; }
+      .sub-meta, .field-num { color: #666; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-left">
+    <a href="biblioteca.html" style="color:rgba(255,255,255,.6);display:flex;text-decoration:none;" title="Voltar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="topbar-title">Respostas das Atividades</span>
+    <span class="room-chip" id="roomChip">—</span>
+  </div>
+  <div class="tb-right">
+    <button class="btn btn-secondary btn-sm print-btn" onclick="window.print()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Imprimir
+    </button>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="filter-bar">
+    <input type="text" class="filter-input" id="filterName" placeholder="Filtrar por nome do aluno..." oninput="renderList()">
+    <input type="text" class="filter-input" id="filterLesson" placeholder="Filtrar por atividade..." oninput="renderList()" style="max-width:240px;">
+  </div>
+
+  <div class="stats" id="statsBar">
+    <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Enviadas</div></div>
+    <div class="stat-card"><div class="stat-num" id="statStudents">0</div><div class="stat-label">Alunos</div></div>
+    <div class="stat-card"><div class="stat-num" id="statActivities">0</div><div class="stat-label">Atividades</div></div>
+  </div>
+
+  <p class="section-title">Submissões</p>
+  <div id="listContainer">
+    <div class="empty-state">
+      <div class="spinner" style="width:40px;height:40px;border-color:rgba(255,255,255,.1);border-top-color:var(--laranja);margin:0 auto 1rem;"></div>
+      <p>Carregando...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const params  = new URLSearchParams(location.search);
+  const room    = params.get('sala')?.toUpperCase() || '';
+  let allData   = [];
+
+  document.getElementById('roomChip').textContent = room || 'Todas as salas';
+
+  async function loadData() {
+    try {
+      const url = room ? `/api/submissions?room=${encodeURIComponent(room)}` : '/api/submissions';
+      const res = await fetch(url);
+      if (res.status === 401) {
+        document.getElementById('listContainer').innerHTML = `
+          <div class="empty-state">
+            <p>Sessão expirada. <a href="biblioteca.html" style="color:var(--laranja);">Faça login novamente</a>.</p>
+          </div>`;
+        return;
+      }
+      allData = await res.json();
+      renderList();
+    } catch {
+      document.getElementById('listContainer').innerHTML = `<div class="empty-state"><p>Erro ao carregar dados.</p></div>`;
+    }
+  }
+
+  function renderList() {
+    const nameF    = document.getElementById('filterName').value.toLowerCase();
+    const lessonF  = document.getElementById('filterLesson').value.toLowerCase();
+
+    const filtered = allData.filter(s =>
+      s.student_name.toLowerCase().includes(nameF) &&
+      (s.lesson_name || '').toLowerCase().includes(lessonF)
+    );
+
+    // Stats
+    const uniqueStudents    = new Set(allData.map(s => s.student_name)).size;
+    const uniqueActivities  = new Set(allData.map(s => s.lesson_name)).size;
+    document.getElementById('statTotal').textContent      = allData.length;
+    document.getElementById('statStudents').textContent   = uniqueStudents;
+    document.getElementById('statActivities').textContent = uniqueActivities;
+
+    if (!filtered.length) {
+      document.getElementById('listContainer').innerHTML = `
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <p>Nenhuma resposta encontrada.</p>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('listContainer').innerHTML = filtered.map((s, i) => {
+      const initials = s.student_name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      const date     = new Date(s.submitted_at).toLocaleString('pt-BR');
+      const fields   = s.data?.fields || [];
+      const checked  = s.data?.checkboxes || [];
+
+      const fieldsHtml = fields.map((val, fi) => `
+        <div class="field-row">
+          <div class="field-num">Campo ${fi + 1}</div>
+          <div class="field-val ${val ? '' : 'empty'}">${val || '(não preenchido)'}</div>
+        </div>`).join('');
+
+      const checksHtml = checked.length
+        ? `<div class="check-section">
+            <div class="field-num">Checkboxes marcados</div>
+            ${checked.map(idx => `<span class="check-tag">✓ item ${idx + 1}</span>`).join('')}
+           </div>`
+        : '';
+
+      return `
+        <div class="sub-card" id="sub-${i}">
+          <div class="sub-header" onclick="toggleCard(${i})">
+            <div class="sub-avatar">${initials}</div>
+            <div class="sub-info">
+              <div class="sub-name">${s.student_name}</div>
+              <div class="sub-meta">${s.lesson_name || 'Atividade'} · ${date}</div>
+            </div>
+            <svg class="sub-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="sub-body">
+            ${fieldsHtml}${checksHtml}
+            ${!fieldsHtml && !checksHtml ? '<p style="color:rgba(255,255,255,.25);font-size:.85rem;padding:.5rem 0;">Nenhum campo preenchido.</p>' : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleCard(i) {
+    document.getElementById(`sub-${i}`).classList.toggle('open');
+  }
+
+  loadData();
+</script>
+</body>
+</html>

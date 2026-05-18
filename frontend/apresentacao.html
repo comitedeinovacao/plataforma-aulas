@@ -370,6 +370,14 @@
         <p>Nenhum aluno ainda.<br>Compartilhe o código.</p>
       </div>
     </div>
+    <div style="padding:.75rem 1rem;border-top:1px solid rgba(255,255,255,.08);">
+      <a id="verRespostasBtn" href="#" target="_blank"
+        style="display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem;border-radius:8px;background:rgba(247,148,29,.1);border:1px solid rgba(247,148,29,.25);color:var(--laranja);font-size:.78rem;font-weight:700;text-decoration:none;letter-spacing:.03em;"
+        title="Abrir dashboard de respostas das atividades">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Ver respostas das atividades
+      </a>
+    </div>
   </div>
 
   <!-- Quiz / Enquetes -->
@@ -589,6 +597,10 @@ socket.on('quiz:results', ({ breakdown, answered, correct, totalStudents }) => {
   renderResultBars(breakdown, answered);
 });
 socket.on('error', msg => toast(msg, 'err'));
+
+socket.on('activity:submitted', ({ studentName, lessonName }) => {
+  toast(`${studentName} enviou "${lessonName}"`, 'ok');
+});
 
 // ─── Toast ──────────────────────────────────────────────────────────────────
 function toast(msg, t = 'ok') {
@@ -813,6 +825,7 @@ function updateQR() {
   document.getElementById('qrImg').src      = qr;
   document.getElementById('qrModalImg').src = qr;
   document.getElementById('qrModalUrl').textContent = url;
+  document.getElementById('verRespostasBtn').href = `/respostas.html?sala=${roomCode}`;
 }
 
 document.getElementById('roomPill').addEventListener('click', () => document.getElementById('qrModal').classList.add('open'));

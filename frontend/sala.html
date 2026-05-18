@@ -314,7 +314,7 @@
       document.getElementById('topbarLesson').textContent = lesson.name;
       lessonType = lesson.type;
       lessonFilename = lesson.url || `/uploads/${lesson.filename}`;
-      loadLesson(lessonFilename, lesson.type, currentSlide, totalSlides);
+      loadLesson(lessonFilename, lesson.type, currentSlide, totalSlides, lesson.name);
       if (activeQuiz) showQuiz(activeQuiz);
       if (activePoll) showPollOverlay(activePoll);
     });
@@ -353,6 +353,13 @@
       setTimeout(() => hideQuiz(), 3500);
     });
 
+    // Mensagens do iframe: activityReady libera interação; activitySubmitted confirma envio
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'activityReady') {
+        document.getElementById('htmlFrame').style.pointerEvents = 'auto';
+      }
+    });
+
     socket.on('draw:data', (data) => {
       const w = drawCanvas.width, h = drawCanvas.height;
       if (data.type === 'start') {
@@ -374,7 +381,7 @@
     });
 
     // ─── Lesson loader ─────────────────────────────────────────────────────────
-    async function loadLesson(url, type, startSlide, totalSlides) {
+    async function loadLesson(url, type, startSlide, totalSlides, lessonName = '') {
       if (type === 'pdf') {
         document.getElementById('htmlFrame').style.display = 'none';
         pdfDoc = await pdfjsLib.getDocument(url).promise;
@@ -383,7 +390,17 @@
         document.getElementById('pdfCanvas').style.display = 'none';
         const frame = document.getElementById('htmlFrame');
         frame.style.display = 'block';
-        frame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
+        if (url.startsWith('http')) {
+          const params = new URLSearchParams({
+            url,
+            name: myName,
+            room: roomCode,
+            lessonName: lessonName,
+          });
+          frame.src = `/api/proxy-html?${params}`;
+        } else {
+          frame.src = url;
+        }
         frame.onload = () => {
           document.getElementById('viewerState').style.display = 'none';
           frame.style.pointerEvents = 'none'; // bloqueia navegação do aluno

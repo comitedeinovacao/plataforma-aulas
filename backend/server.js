@@ -430,7 +430,91 @@ const SLIDE_SYNC_SCRIPT = `<script>
 })();
 </script>`;
 
-// ─── HTML proxy (injeta script de sincronização de slides) ────────────────────
+// Script injetado nas atividades HTML para tornar campos editáveis e enviar respostas
+const ACTIVITY_SCRIPT = `<script>
+(function(){
+  var fields=document.querySelectorAll('.field-line,.field-line-lg');
+  if(!fields.length) return; // não é atividade — saída silenciosa
+  var sp=new URLSearchParams(location.search);
+  var studentName=decodeURIComponent(sp.get('name')||'Aluno');
+  var roomCode=decodeURIComponent(sp.get('room')||'');
+  var lessonName=decodeURIComponent(sp.get('lessonName')||'Atividade');
+  var lessonUrl=sp.get('url')||'';
+
+  /* ── Notifica o pai que este frame é uma atividade (libera pointer events) ── */
+  try{window.parent.postMessage({type:'activityReady'},'*');}catch(e){}
+
+  /* ── Campos de texto editáveis ── */
+  fields.forEach(function(el){
+    el.contentEditable='true';
+    el.style.outline='none';
+    el.style.cursor='text';
+    el.style.background='rgba(0,69,135,.07)';
+    el.style.borderRadius='3px';
+    el.style.padding='2px 6px';
+    el.style.minHeight='1.5em';
+    el.style.color='#001833';
+    el.style.transition='background .15s';
+    el.addEventListener('focus',function(){el.style.background='rgba(0,69,135,.13)';});
+    el.addEventListener('blur',function(){el.style.background='rgba(0,69,135,.07)';});
+  });
+
+  /* ── Checkboxes clicáveis ── */
+  document.querySelectorAll('.check-box,.chrono-check').forEach(function(el){
+    el.style.cursor='pointer';
+    el.dataset.checked='0';
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      var on=el.dataset.checked!=='1';
+      el.dataset.checked=on?'1':'0';
+      el.style.background=on?'#004587':'';
+      el.style.borderColor=on?'#004587':'';
+    });
+  });
+
+  /* ── Botão flutuante de envio ── */
+  var btn=document.createElement('button');
+  btn.textContent='Enviar para o professor';
+  btn.style.cssText='position:fixed;bottom:20px;right:20px;z-index:9999;background:#004587;color:#fff;border:none;border-radius:12px;padding:13px 26px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 24px rgba(0,69,135,.35);font-family:inherit;letter-spacing:.01em;';
+  document.body.appendChild(btn);
+
+  btn.addEventListener('click',function(){
+    if(btn.dataset.sent==='1') return;
+    var data={fields:[],checkboxes:[]};
+    document.querySelectorAll('.field-line,.field-line-lg').forEach(function(el){
+      data.fields.push(el.innerText.trim());
+    });
+    document.querySelectorAll('.check-box,.chrono-check').forEach(function(el,i){
+      if(el.dataset.checked==='1') data.checkboxes.push(i);
+    });
+    btn.textContent='Enviando...';
+    btn.style.opacity='.7';
+    fetch('/api/submit-activity',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({roomCode:roomCode,studentName:studentName,lessonName:lessonName,lessonUrl:lessonUrl,data:data})
+    }).then(function(r){return r.json();}).then(function(j){
+      if(j.ok){
+        btn.textContent='Enviado com sucesso!';
+        btn.style.background='#16a34a';
+        btn.style.opacity='1';
+        btn.dataset.sent='1';
+        try{window.parent.postMessage({type:'activitySubmitted',studentName:studentName},'*');}catch(e){}
+      }else{
+        btn.textContent='Erro — tente novamente';
+        btn.style.background='#dc2626';
+        btn.style.opacity='1';
+      }
+    }).catch(function(){
+      btn.textContent='Erro — tente novamente';
+      btn.style.background='#dc2626';
+      btn.style.opacity='1';
+    });
+  });
+})();
+</script>`;
+
+// ─── HTML proxy (injeta scripts de sincronização e atividade) ─────────────────
 app.get('/api/proxy-html', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).end();
@@ -438,14 +522,61 @@ app.get('/api/proxy-html', async (req, res) => {
     const response = await fetch(url);
     if (!response.ok) return res.status(response.status).end();
     let html = await response.text();
+    const injection = SLIDE_SYNC_SCRIPT + ACTIVITY_SCRIPT;
     html = html.includes('</body>')
-      ? html.replace('</body>', SLIDE_SYNC_SCRIPT + '</body>')
-      : html + SLIDE_SYNC_SCRIPT;
+      ? html.replace('</body>', injection + '</body>')
+      : html + injection;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
     console.error('proxy-html:', err.message);
     res.status(500).end();
+  }
+});
+
+// ─── Submissão de atividades ──────────────────────────────────────────────────
+app.post('/api/submit-activity', express.json(), async (req, res) => {
+  const { roomCode, studentName, lessonName, lessonUrl, data } = req.body;
+  if (!roomCode || !studentName || !data) return res.status(400).json({ error: 'Dados incompletos' });
+
+  try {
+    if (supabase) {
+      const { error } = await supabase.from('submissions').insert({
+        room_code: roomCode,
+        student_name: studentName,
+        lesson_name: lessonName || 'Atividade',
+        lesson_url: lessonUrl || '',
+        data,
+      });
+      if (error) throw error;
+    }
+
+    // Notifica o professor via socket (se a sala ainda estiver ativa)
+    const s = sessions.get(roomCode?.toUpperCase());
+    if (s?.teacherSocket) {
+      io.to(s.teacherSocket).emit('activity:submitted', { studentName, lessonName });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('submit-activity:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Consulta de submissões (professor autenticado) ───────────────────────────
+app.get('/api/submissions', auth, async (req, res) => {
+  const { room } = req.query;
+  if (!supabase) return res.json([]);
+  try {
+    let q = supabase.from('submissions').select('*').order('submitted_at', { ascending: false });
+    if (room) q = q.eq('room_code', room.toUpperCase());
+    const { data, error } = await q.limit(200);
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('get-submissions:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
