@@ -242,6 +242,13 @@
               <input type="text" id="lessonBlocoInput" class="input input-sm" placeholder="Ex: Bloco 2" list="blocoDL">
               <datalist id="blocoDL"></datalist>
             </div>
+            <div class="form-group" style="max-width:180px;">
+              <label class="label" for="uploadFileType">Tipo de conteúdo</label>
+              <select id="uploadFileType" class="input input-sm" style="cursor:pointer;">
+                <option value="auto">Aula (PDF / HTML)</option>
+                <option value="quiz">Quiz interativo (HTML)</option>
+              </select>
+            </div>
             <button type="button" class="btn btn-primary" id="uploadBtn">Enviar</button>
             <button type="button" class="btn btn-ghost" id="cancelUploadBtn">Cancelar</button>
           </div>
@@ -407,12 +414,15 @@ function cardHtml(l) {
 
   const iconPdf  = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 10 9"/>';
   const iconHtml = '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>';
+  const iconQuiz = '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>';
+  const icon     = l.type === 'pdf' ? iconPdf : l.type === 'quiz' ? iconQuiz : iconHtml;
+  const badgeLbl = l.type === 'quiz' ? 'QUIZ' : l.type.toUpperCase();
 
   return `
     <div class="lesson-card" data-id="${l.id}">
       <div class="lesson-thumb">
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">${l.type === 'pdf' ? iconPdf : iconHtml}</svg>
-        <span class="lesson-thumb-badge badge badge-${l.type}">${l.type.toUpperCase()}</span>
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">${icon}</svg>
+        <span class="lesson-thumb-badge badge badge-${l.type}">${badgeLbl}</span>
       </div>
       <div class="lesson-info">
         <p class="lesson-name truncate" title="${l.name}">${l.name}</p>
@@ -605,10 +615,12 @@ uploadBtn.addEventListener('click', () => {
   progressBar.style.width  = '0%';
   progressTxt.textContent  = 'Enviando...';
 
+  const forceType = document.getElementById('uploadFileType').value;
   const fd = new FormData();
   fd.append('file', selectedFile);
   fd.append('name', name);
   fd.append('bloco', bloco);
+  if (forceType !== 'auto') fd.append('forceType', forceType);
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/lessons/upload');
@@ -628,6 +640,7 @@ uploadBtn.addEventListener('click', () => {
       const lesson = JSON.parse(xhr.responseText);
       lessons.unshift(lesson);
       document.getElementById('lessonBlocoInput').value = '';
+      document.getElementById('uploadFileType').value   = 'auto';
       document.getElementById('uploadCard').classList.add('hidden');
       buildSidebar();
       renderLessons();

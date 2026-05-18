@@ -160,10 +160,11 @@ app.post('/api/lessons/upload', auth, upload.single('file'), async (req, res) =>
       url = `/uploads/${uniqueName}`;
     }
 
+    const autoType = ext === '.pdf' ? 'pdf' : 'html';
     const lesson = {
       id: randomUUID(),
       name: (req.body.name || '').trim() || path.basename(req.file.originalname, ext),
-      type: ext === '.pdf' ? 'pdf' : 'html',
+      type: (req.body.forceType && req.body.forceType !== 'auto') ? req.body.forceType : autoType,
       filename: uniqueName,
       url,
       original_name: req.file.originalname,
@@ -233,6 +234,7 @@ app.post('/api/sessions', auth, async (req, res) => {
     activeQuiz: null,
     quizResults: {},
     quizOrder: [],
+    quizSessionProgress: {},
     activePoll: null,
     pollResponses: [],
     teacherSocket: null,
@@ -457,6 +459,53 @@ const SLIDE_SYNC_SCRIPT = `<script>
 })();
 </script>`;
 
+// Script injetado nos quizes HTML para capturar respostas e reportar ao professor
+const QUIZ_TRACKER_SCRIPT = `<script>
+(function(){
+  var sp=new URLSearchParams(location.search);
+  var studentName=decodeURIComponent(sp.get('name')||'Aluno');
+  var roomCode=decodeURIComponent(sp.get('room')||'');
+  var lessonName=decodeURIComponent(sp.get('lessonName')||'Quiz');
+
+  function report(data){
+    fetch('/api/quiz-progress',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(Object.assign({roomCode:roomCode,studentName:studentName,lessonName:lessonName},data))
+    }).catch(function(){});
+  }
+
+  function waitAndWrap(){
+    if(typeof QUESTIONS==='undefined'||typeof answer!=='function'){
+      setTimeout(waitAndWrap,150);return;
+    }
+    var total=QUESTIONS.length;
+    try{window.parent.postMessage({type:'quizReady',total:total},'*');}catch(e){}
+
+    var _answer=window.answer;
+    window.answer=function(idx){
+      var qIdx=current;
+      var isCorrect=idx===QUESTIONS[qIdx].correct;
+      _answer(idx);
+      report({type:'answer',questionIdx:qIdx,isCorrect:isCorrect,currentScore:score,total:total});
+    };
+
+    var _showResult=window.showResult;
+    window.showResult=function(){
+      _showResult();
+      report({type:'complete',currentScore:score,total:total,pct:Math.round((score/total)*100)});
+      try{window.parent.postMessage({type:'quizComplete',score:score,total:total},'*');}catch(e){}
+    };
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',waitAndWrap);
+  }else{
+    setTimeout(waitAndWrap,100);
+  }
+})();
+</script>`;
+
 // Script injetado nas atividades HTML para tornar campos editáveis e enviar respostas
 const ACTIVITY_SCRIPT = `<script>
 (function(){
@@ -544,12 +593,15 @@ const ACTIVITY_SCRIPT = `<script>
 // ─── HTML proxy (injeta scripts de sincronização e atividade) ─────────────────
 app.get('/api/proxy-html', async (req, res) => {
   const url = req.query.url;
+  const lessonType = req.query.lessonType || 'html';
   if (!url) return res.status(400).end();
   try {
     const response = await fetch(url);
     if (!response.ok) return res.status(response.status).end();
     let html = await response.text();
-    const injection = SLIDE_SYNC_SCRIPT + ACTIVITY_SCRIPT;
+    const injection = lessonType === 'quiz'
+      ? QUIZ_TRACKER_SCRIPT
+      : SLIDE_SYNC_SCRIPT + ACTIVITY_SCRIPT;
     html = html.includes('</body>')
       ? html.replace('</body>', injection + '</body>')
       : html + injection;
@@ -589,6 +641,42 @@ app.post('/api/submit-activity', express.json(), async (req, res) => {
     console.error('submit-activity:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── Progresso de quiz interativo (HTML) ──────────────────────────────────────
+app.post('/api/quiz-progress', express.json(), (req, res) => {
+  const { roomCode, studentName, type, questionIdx, isCorrect, currentScore, total } = req.body;
+  if (!roomCode || !studentName) return res.json({ ok: false });
+
+  const s = sessions.get(roomCode.toUpperCase());
+  if (!s) return res.json({ ok: false });
+
+  if (!s.quizSessionProgress[studentName]) {
+    s.quizSessionProgress[studentName] = {
+      name: studentName, total: total || 0,
+      score: 0, answeredCount: 0, done: false,
+    };
+  }
+
+  const p = s.quizSessionProgress[studentName];
+  if (total) p.total = total;
+
+  if (type === 'answer') {
+    p.answeredCount = Math.max(p.answeredCount, (questionIdx || 0) + 1);
+    p.score = currentScore || 0;
+  } else if (type === 'complete') {
+    p.answeredCount = p.total;
+    p.score = currentScore || 0;
+    p.done = true;
+  }
+
+  if (s.teacherSocket) {
+    io.to(s.teacherSocket).emit('quizSession:progress', {
+      students: Object.values(s.quizSessionProgress),
+    });
+  }
+
+  res.json({ ok: true });
 });
 
 // ─── Consulta de submissões (professor autenticado) ───────────────────────────

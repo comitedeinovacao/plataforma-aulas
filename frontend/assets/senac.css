@@ -124,6 +124,7 @@ p  { font-size: 0.9375rem; line-height: 1.65; }
 }
 .badge-pdf  { background: rgba(0,69,135,.1); color: var(--azul); }
 .badge-html { background: rgba(247,148,29,.15); color: #b86e00; }
+.badge-quiz { background: rgba(124,58,237,.12); color: #7c3aed; }
 .badge-live { background: #dcfce7; color: #15803d; }
 .badge-off  { background: var(--cinza); color: var(--texto-med); }
 

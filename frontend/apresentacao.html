@@ -369,6 +369,10 @@
     <button class="tbtn" id="btnQuiz" data-panel="quiz" title="Quiz">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </button>
+    <!-- Quiz session scoreboard button (visible only for quiz lessons) -->
+    <button class="tbtn" id="btnQuizSession" data-panel="quiz-session" title="Desempenho do quiz" style="display:none">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+    </button>
     <!-- Room/QR panel button -->
     <button class="tbtn" id="btnRoom" data-panel="room" title="Código da sala">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h7v7"/></svg>
@@ -535,6 +539,22 @@
     </div>
   </div>
 
+  <!-- Quiz Session Scoreboard -->
+  <div class="fpanel" id="panel-quiz-session">
+    <div class="fp-header">
+      <span class="fp-title">Desempenho do Quiz</span>
+      <button class="fp-close" onclick="openPanel(null)">✕</button>
+    </div>
+    <div style="padding:.75rem 1rem;border-bottom:1px solid rgba(255,255,255,.08);">
+      <p style="font-size:.68rem;color:rgba(255,255,255,.35);font-weight:600;" id="quizSessionMeta">Aguardando alunos...</p>
+    </div>
+    <div class="fp-body" id="quizSessionBody" style="overflow-y:auto;">
+      <p style="color:rgba(255,255,255,.25);font-size:.8rem;text-align:center;padding:2rem 1rem;">
+        Nenhum aluno iniciou o quiz ainda.
+      </p>
+    </div>
+  </div>
+
   <!-- ── Game overlay (full-screen gamification display) ───────────────── -->
   <div id="gameOverlay">
     <div class="go-header">
@@ -607,6 +627,10 @@ const htmlFrame  = document.getElementById('htmlFrame');
 const socket = io();
 socket.emit('professor:join', { roomCode });
 
+socket.on('quizSession:progress', ({ students }) => {
+  renderQuizSessionPanel(students);
+});
+
 socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
   document.getElementById('lessonTitle').textContent = lesson.name;
   document.getElementById('roomCodeDisplay').textContent = roomCode;
@@ -616,6 +640,11 @@ socket.on('session:state', ({ lesson, currentSlide, totalSlides }) => {
   updateQR();
   const fileUrl = lesson.url || `/uploads/${lesson.filename}`;
   loadLesson(fileUrl, lesson.type, currentSlide || 0);
+
+  if (lesson.type === 'quiz') {
+    document.getElementById('btnQuizSession').style.display = '';
+    openPanel('quiz-session');
+  }
 });
 
 // Recebe mudança de slide do iframe HTML e propaga para alunos
@@ -677,7 +706,12 @@ async function loadLesson(url, type, startSlide) {
     pdfCanvas.style.display = 'none';
     document.getElementById('slideNav').style.visibility = 'hidden';
     htmlFrame.style.display = 'block';
-    htmlFrame.src = url.startsWith('http') ? `/api/proxy-html?url=${encodeURIComponent(url)}` : url;
+    if (url.startsWith('http')) {
+      const p = new URLSearchParams({ url, lessonType: type });
+      htmlFrame.src = `/api/proxy-html?${p}`;
+    } else {
+      htmlFrame.src = url;
+    }
     htmlFrame.onload = () => { document.getElementById('viewerState').style.display = 'none'; syncDrawCanvas(); };
   }
 }
@@ -1154,6 +1188,48 @@ function renderResultBars(breakdown, answered) {
         <div class="res-bar" style="width:${pct}%;background:${isCorr ? '#22c55e' : 'var(--laranja)'}"></div>
       </div>
     </div>`;
+  }).join('');
+}
+
+// ─── Quiz session scoreboard ────────────────────────────────────────────────
+function renderQuizSessionPanel(students) {
+  const body = document.getElementById('quizSessionBody');
+  const meta = document.getElementById('quizSessionMeta');
+  if (!students || !students.length) {
+    body.innerHTML = '<p style="color:rgba(255,255,255,.25);font-size:.8rem;text-align:center;padding:2rem 1rem;">Nenhum aluno iniciou o quiz ainda.</p>';
+    return;
+  }
+
+  const done  = students.filter(s => s.done).length;
+  const total = students[0]?.total || 0;
+  meta.textContent = `${students.length} aluno${students.length !== 1 ? 's' : ''} · ${done} concluído${done !== 1 ? 's' : ''}`;
+
+  const sorted = [...students].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? -1 : 1;
+    if (b.score !== a.score) return b.score - a.score;
+    return b.answeredCount - a.answeredCount;
+  });
+
+  const medals = ['🥇', '🥈', '🥉'];
+  body.innerHTML = sorted.map((s, i) => {
+    const progressPct = total > 0 ? Math.round(s.answeredCount / total * 100) : 0;
+    const scorePct    = total > 0 ? Math.round(s.score / total * 100) : 0;
+    return `
+      <div style="padding:.75rem 1rem;border-bottom:1px solid rgba(255,255,255,.06);">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+          <span style="font-size:.85rem;width:22px;text-align:center;flex-shrink:0">${s.done && i < 3 ? medals[i] : (i + 1) + '°'}</span>
+          <span style="flex:1;font-size:.84rem;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span>
+          <span style="font-size:.72rem;font-weight:700;color:${s.done ? '#22c55e' : 'rgba(255,255,255,.4)'};flex-shrink:0">
+            ${s.done ? '✓ fim' : `Q${s.answeredCount}/${total}`}
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div style="flex:1;background:rgba(255,255,255,.08);border-radius:3px;height:5px;overflow:hidden">
+            <div style="width:${progressPct}%;height:100%;background:rgba(247,148,29,.5);border-radius:3px;transition:width .4s"></div>
+          </div>
+          <span style="font-size:.75rem;font-weight:800;color:var(--laranja);flex-shrink:0;width:44px;text-align:right">${s.score}/${total} <span style="font-weight:400;color:rgba(255,255,255,.3)">(${scorePct}%)</span></span>
+        </div>
+      </div>`;
   }).join('');
 }
 

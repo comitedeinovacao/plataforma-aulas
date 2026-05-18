@@ -361,12 +361,25 @@
       setTimeout(() => hideQuiz(), 3500);
     });
 
-    // Mensagens do iframe: activityReady libera interação; activitySubmitted confirma envio
+    // Mensagens do iframe
     window.addEventListener('message', (e) => {
-      if (e.data?.type === 'activityReady') {
+      if (e.data?.type === 'activityReady' || e.data?.type === 'quizReady') {
         document.getElementById('htmlFrame').style.pointerEvents = 'auto';
       }
+      if (e.data?.type === 'quizComplete') {
+        const { score, total } = e.data;
+        showQuizToast(score, total);
+      }
     });
+
+    function showQuizToast(score, total) {
+      const pct = Math.round(score / total * 100);
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a2035;border:1.5px solid rgba(247,148,29,.4);border-radius:12px;padding:.875rem 1.5rem;color:#fff;font-size:.875rem;font-weight:700;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.4);text-align:center;white-space:nowrap;';
+      el.textContent = `Quiz concluído! ${score}/${total} acertos (${pct}%)`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 5000);
+    }
 
     socket.on('draw:data', (data) => {
       const w = drawCanvas.width, h = drawCanvas.height;
@@ -404,6 +417,7 @@
             name: myName,
             room: roomCode,
             lessonName: lessonName,
+            lessonType: type,
           });
           frame.src = `/api/proxy-html?${params}`;
         } else {
