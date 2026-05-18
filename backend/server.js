@@ -210,6 +210,8 @@ app.post('/api/sessions', auth, async (req, res) => {
     students: new Map(),
     activeQuiz: null,
     quizResults: {},
+    activePoll: null,
+    pollResponses: [],
     teacherSocket: null,
     createdAt: Date.now(),
   });
@@ -255,6 +257,7 @@ io.on('connection', (socket) => {
       totalSlides: s.totalSlides,
       lesson: { type: s.lesson.type, filename: s.lesson.filename, url: s.lesson.url, name: s.lesson.name },
       activeQuiz: s.activeQuiz,
+      activePoll: s.activePoll,
     });
 
     if (s.teacherSocket) {
@@ -326,6 +329,44 @@ io.on('connection', (socket) => {
     });
     s.activeQuiz = null;
     s.quizResults = {};
+  });
+
+  // ── Enquetes avançadas (nuvem, mural, ranking) ──────────────────────────────
+  socket.on('poll:launch', (poll) => {
+    const meta = socketMeta.get(socket.id);
+    if (!meta || meta.role !== 'professor') return;
+    const s = sessions.get(meta.roomCode);
+    if (!s) return;
+    s.activePoll = poll;
+    s.pollResponses = [];
+    io.to(meta.roomCode).emit('poll:launched', poll);
+  });
+
+  socket.on('poll:respond', ({ response }) => {
+    const meta = socketMeta.get(socket.id);
+    if (!meta || meta.role !== 'student') return;
+    const s = sessions.get(meta.roomCode);
+    if (!s?.activePoll) return;
+    if (s.pollResponses.find(r => r.name === meta.name)) return;
+    s.pollResponses.push({ name: meta.name, response });
+    socket.emit('poll:responded');
+    if (s.teacherSocket) {
+      io.to(s.teacherSocket).emit('poll:results', {
+        responses: s.pollResponses,
+        poll: s.activePoll,
+        totalStudents: s.students.size,
+      });
+    }
+  });
+
+  socket.on('poll:end', () => {
+    const meta = socketMeta.get(socket.id);
+    if (!meta || meta.role !== 'professor') return;
+    const s = sessions.get(meta.roomCode);
+    if (!s) return;
+    io.to(meta.roomCode).emit('poll:ended');
+    s.activePoll = null;
+    s.pollResponses = [];
   });
 
   socket.on('draw:data', (data) => {

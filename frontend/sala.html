@@ -144,6 +144,58 @@
       font-size: .8125rem; color: rgba(255,255,255,.35);
       text-align: center; margin-top: .5rem;
     }
+
+    /* ─ Poll overlay ─ */
+    .poll-overlay {
+      position: absolute; inset: 0; z-index: 50;
+      background: rgba(5,12,35,.92);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .poll-card {
+      background: #1a2035;
+      border: 1.5px solid rgba(247,148,29,.3);
+      border-radius: 16px; padding: 2rem;
+      width: 100%; max-width: 520px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+      animation: modalIn .3s ease;
+    }
+    .poll-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: rgba(247,148,29,.15); border: 1px solid rgba(247,148,29,.3);
+      border-radius: 100px; padding: .3rem .875rem;
+      color: var(--laranja); font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 1.25rem;
+    }
+    .poll-question {
+      font-size: clamp(.95rem, 2.5vw, 1.25rem);
+      font-weight: 700; color: var(--branco); line-height: 1.4;
+      margin-bottom: 1.25rem;
+    }
+    .poll-input {
+      width: 100%; background: rgba(255,255,255,.08);
+      border: 1.5px solid rgba(255,255,255,.15);
+      border-radius: 10px; padding: .75rem 1rem;
+      font-family: inherit; font-size: 1rem; color: #fff;
+      outline: none; resize: none; transition: border-color .2s;
+    }
+    .poll-input:focus { border-color: var(--laranja); }
+    .poll-input::placeholder { color: rgba(255,255,255,.3); }
+    .rank-sort-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+    .rank-sort-item { display: flex; align-items: center; gap: .75rem; background: rgba(255,255,255,.07); border-radius: 10px; padding: .75rem 1rem; }
+    .rank-sort-pos { font-size: 1rem; font-weight: 800; color: var(--laranja); width: 24px; text-align: center; flex-shrink: 0; }
+    .rank-sort-label { flex: 1; font-size: .95rem; font-weight: 600; color: rgba(255,255,255,.9); }
+    .rank-sort-btns { display: flex; gap: 4px; }
+    .rank-sort-btn { width: 30px; height: 30px; background: rgba(255,255,255,.1); border: none; border-radius: 6px; cursor: pointer; color: rgba(255,255,255,.6); font-size: .85rem; display: flex; align-items: center; justify-content: center; transition: var(--ease); }
+    .rank-sort-btn:hover:not(:disabled) { background: rgba(255,255,255,.2); color: #fff; }
+    .rank-sort-btn:disabled { opacity: .3; cursor: not-allowed; }
+    .poll-sent { text-align: center; padding: 1.5rem 0; }
+    .poll-sent-icon { font-size: 2.5rem; margin-bottom: .5rem; }
+    .poll-sent-text { font-size: 1rem; font-weight: 700; color: var(--branco); }
+    .poll-sent-sub { font-size: .875rem; color: rgba(255,255,255,.4); margin-top: .25rem; }
   </style>
 </head>
 <body>
@@ -188,6 +240,40 @@
           <p class="waiting-msg hidden" id="waitingMsg">Aguarde o professor encerrar o quiz...</p>
         </div>
       </div>
+
+      <!-- Poll overlay (nuvem / mural / ranking) -->
+      <div class="poll-overlay" id="pollOverlay">
+        <div class="poll-card">
+          <div class="poll-badge" id="pollBadge">Enquete ao vivo</div>
+          <p class="poll-question" id="pollQuestion">—</p>
+
+          <!-- Word cloud input -->
+          <div id="pollWordInput">
+            <input type="text" class="poll-input" id="wcInput" placeholder="Digite uma palavra ou expressão..." maxlength="40">
+            <button type="button" class="btn btn-primary w-full" id="wcSendBtn" style="margin-top:1rem;">Enviar resposta</button>
+          </div>
+
+          <!-- Mural input -->
+          <div id="pollMuralInput" style="display:none;">
+            <textarea class="poll-input" id="muralInput" rows="3" placeholder="Escreva sua frase..." maxlength="200"></textarea>
+            <button type="button" class="btn btn-primary w-full" id="muralSendBtn" style="margin-top:1rem;">Enviar resposta</button>
+          </div>
+
+          <!-- Ranking input -->
+          <div id="pollRankInput" style="display:none;">
+            <p style="font-size:.8rem;color:rgba(255,255,255,.4);margin-bottom:.75rem;">Use ▲▼ para ordenar do mais importante (1°) ao menos importante.</p>
+            <div class="rank-sort-list" id="rankSortList"></div>
+            <button type="button" class="btn btn-primary w-full" id="rankSendBtn">Confirmar ordem</button>
+          </div>
+
+          <!-- Sent confirmation -->
+          <div class="poll-sent" id="pollSent" style="display:none;">
+            <div class="poll-sent-icon">✅</div>
+            <p class="poll-sent-text">Resposta enviada!</p>
+            <p class="poll-sent-sub">Aguarde o professor encerrar a enquete.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -224,12 +310,13 @@
     const socket = io();
     socket.emit('student:join', { roomCode, name: myName });
 
-    socket.on('join:success', ({ currentSlide, totalSlides, lesson, activeQuiz }) => {
+    socket.on('join:success', ({ currentSlide, totalSlides, lesson, activeQuiz, activePoll }) => {
       document.getElementById('topbarLesson').textContent = lesson.name;
       lessonType = lesson.type;
       lessonFilename = lesson.url || `/uploads/${lesson.filename}`;
       loadLesson(lessonFilename, lesson.type, currentSlide, totalSlides);
       if (activeQuiz) showQuiz(activeQuiz);
+      if (activePoll) showPollOverlay(activePoll);
     });
 
     socket.on('join:error', (msg) => {
@@ -426,6 +513,102 @@
       document.getElementById('quizOverlay').style.display = 'none';
       currentQuiz = null;
     }
+
+    // ─── Poll (nuvem / mural / ranking) ───────────────────────────────────────
+    let currentPoll  = null;
+    let pollAnswered = false;
+    let rankOrder    = [];
+
+    socket.on('poll:launched', (poll) => {
+      currentPoll  = poll;
+      pollAnswered = false;
+      showPollOverlay(poll);
+    });
+
+    socket.on('poll:responded', () => {
+      pollAnswered = true;
+      showPollSent();
+    });
+
+    socket.on('poll:ended', () => hidePollOverlay());
+
+    function showPollOverlay(poll) {
+      const BADGES = { wordcloud: '☁ Nuvem de Palavras', mural: '💬 Mural de Frases', ranking: '↕ Ranking' };
+      document.getElementById('pollBadge').textContent    = BADGES[poll.type] || 'Enquete ao vivo';
+      document.getElementById('pollQuestion').textContent = poll.question;
+
+      document.getElementById('pollWordInput').style.display  = 'none';
+      document.getElementById('pollMuralInput').style.display = 'none';
+      document.getElementById('pollRankInput').style.display  = 'none';
+      document.getElementById('pollSent').style.display       = 'none';
+
+      if (poll.type === 'wordcloud') {
+        document.getElementById('pollWordInput').style.display = 'block';
+        document.getElementById('wcInput').value = '';
+        document.getElementById('wcSendBtn').disabled = false;
+      } else if (poll.type === 'mural') {
+        document.getElementById('pollMuralInput').style.display = 'block';
+        document.getElementById('muralInput').value = '';
+        document.getElementById('muralSendBtn').disabled = false;
+      } else if (poll.type === 'ranking') {
+        rankOrder = [...poll.items];
+        document.getElementById('pollRankInput').style.display = 'block';
+        document.getElementById('rankSendBtn').disabled = false;
+        renderRankSort();
+      }
+
+      document.getElementById('pollOverlay').style.display = 'flex';
+    }
+
+    function hidePollOverlay() {
+      document.getElementById('pollOverlay').style.display = 'none';
+      currentPoll = null;
+    }
+
+    function showPollSent() {
+      document.getElementById('pollWordInput').style.display  = 'none';
+      document.getElementById('pollMuralInput').style.display = 'none';
+      document.getElementById('pollRankInput').style.display  = 'none';
+      document.getElementById('pollSent').style.display       = 'block';
+    }
+
+    function renderRankSort() {
+      document.getElementById('rankSortList').innerHTML = rankOrder.map((item, i) => `
+        <div class="rank-sort-item">
+          <div class="rank-sort-pos">${i + 1}°</div>
+          <div class="rank-sort-label">${item}</div>
+          <div class="rank-sort-btns">
+            <button type="button" class="rank-sort-btn" onclick="moveRankItem(${i},-1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+            <button type="button" class="rank-sort-btn" onclick="moveRankItem(${i},1)"  ${i === rankOrder.length - 1 ? 'disabled' : ''}>▼</button>
+          </div>
+        </div>`).join('');
+    }
+
+    function moveRankItem(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= rankOrder.length) return;
+      [rankOrder[i], rankOrder[j]] = [rankOrder[j], rankOrder[i]];
+      renderRankSort();
+    }
+
+    document.getElementById('wcSendBtn').addEventListener('click', () => {
+      const val = document.getElementById('wcInput').value.trim();
+      if (!val) return;
+      socket.emit('poll:respond', { response: val });
+      document.getElementById('wcSendBtn').disabled = true;
+    });
+
+    document.getElementById('muralSendBtn').addEventListener('click', () => {
+      const val = document.getElementById('muralInput').value.trim();
+      if (!val) return;
+      socket.emit('poll:respond', { response: val });
+      document.getElementById('muralSendBtn').disabled = true;
+    });
+
+    document.getElementById('rankSendBtn').addEventListener('click', () => {
+      socket.emit('poll:respond', { response: rankOrder });
+      document.getElementById('rankSendBtn').disabled = true;
+    });
   </script>
 </body>
 </html>

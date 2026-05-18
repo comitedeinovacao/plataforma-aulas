@@ -222,6 +222,35 @@
 
     /* ─── Section label inside panel ────────────────────────────────────── */
     .fp-section { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.3); margin-bottom: -.25rem; }
+
+    /* ─── Poll tabs ──────────────────────────────────────────────────────── */
+    .poll-tabs { display:flex; gap:3px; background:rgba(255,255,255,.06); border-radius:9px; padding:3px; }
+    .poll-tab { flex:1; border:none; border-radius:6px; padding:.45rem .15rem; font-size:.62rem; font-weight:700; letter-spacing:.03em; color:rgba(255,255,255,.35); background:none; cursor:pointer; transition:var(--ease); text-align:center; font-family:inherit; }
+    .poll-tab:hover { color:rgba(255,255,255,.7); }
+    .poll-tab.active { background:var(--laranja); color:#fff; }
+
+    /* ─── Word cloud ─────────────────────────────────────────────────────── */
+    .wc-display { min-height:130px; padding:.875rem; background:rgba(255,255,255,.04); border-radius:10px; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; justify-content:center; }
+    .wc-word { font-weight:800; line-height:1.2; transition:all .4s; }
+
+    /* ─── Mural ──────────────────────────────────────────────────────────── */
+    .mural-feed { display:flex; flex-direction:column; gap:7px; max-height:260px; overflow-y:auto; }
+    .mural-feed::-webkit-scrollbar { width:3px; }
+    .mural-feed::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:2px; }
+    .mural-card { border-radius:9px; padding:9px 12px; border-left:3px solid; animation:cardIn .3s ease; }
+    @keyframes cardIn { from{transform:translateY(-6px);opacity:0} to{transform:none;opacity:1} }
+    .mural-card-name { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; opacity:.65; }
+    .mural-card-text { font-size:.82rem; color:rgba(255,255,255,.88); line-height:1.5; }
+
+    /* ─── Ranking ────────────────────────────────────────────────────────── */
+    .rank-input-row { display:flex; align-items:center; gap:6px; }
+    .rank-del-btn { width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,.08);cursor:pointer;color:rgba(255,255,255,.4);font-size:1rem;flex-shrink:0;transition:var(--ease); }
+    .rank-del-btn:hover { background:rgba(239,68,68,.2);color:#ef4444; }
+    .rank-item-res { display:flex; align-items:center; gap:8px; padding:7px 10px; background:rgba(255,255,255,.05); border-radius:8px; }
+    .rank-pos { font-size:.95rem; font-weight:800; color:var(--laranja); width:22px; text-align:center; flex-shrink:0; }
+    .rank-label-res { font-size:.78rem; color:rgba(255,255,255,.85); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .rank-bar-wrap { width:52px; height:5px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; flex-shrink:0; }
+    .rank-bar { height:100%; background:var(--laranja); border-radius:3px; transition:width .5s; }
   </style>
 </head>
 <body>
@@ -343,14 +372,23 @@
     </div>
   </div>
 
-  <!-- Quiz -->
+  <!-- Quiz / Enquetes -->
   <div class="fpanel" id="panel-quiz">
     <div class="fp-header">
-      <span class="fp-title" id="quizPanelTitle">Criar quiz</span>
+      <span class="fp-title" id="quizPanelTitle">Enquetes</span>
       <button class="fp-close" data-close="quiz">&times;</button>
     </div>
     <div class="fp-body">
-      <!-- Creator -->
+
+      <!-- Tabs de tipo -->
+      <div class="poll-tabs" id="pollTypeTabs">
+        <button class="poll-tab active" data-ptype="quiz">Quiz</button>
+        <button class="poll-tab" data-ptype="wordcloud">☁ Nuvem</button>
+        <button class="poll-tab" data-ptype="mural">💬 Mural</button>
+        <button class="poll-tab" data-ptype="ranking">↕ Rank</button>
+      </div>
+
+      <!-- ── QUIZ ── -->
       <div id="quizCreator">
         <p class="fp-section">Pergunta</p>
         <textarea id="quizQuestion" class="qinput" rows="3" placeholder="Digite a pergunta..."></textarea>
@@ -365,7 +403,6 @@
           Lançar quiz
         </button>
       </div>
-      <!-- Results (hidden initially) -->
       <div id="quizResultsPanel" class="hidden">
         <div style="background:rgba(255,255,255,.06);border-radius:8px;padding:.875rem;">
           <p style="color:rgba(255,255,255,.9);font-size:.875rem;font-weight:600;" id="resQuestionDisplay"></p>
@@ -383,6 +420,54 @@
         <div id="resultBars" style="display:flex;flex-direction:column;gap:.5rem;"></div>
         <button class="btn btn-danger w-full" id="endQuizBtn" style="margin-top:.5rem;">Encerrar quiz</button>
       </div>
+
+      <!-- ── NUVEM DE PALAVRAS ── -->
+      <div id="wordcloudCreator" class="hidden">
+        <p class="fp-section">Pergunta para a turma</p>
+        <textarea id="wcQuestion" class="qinput" rows="2" placeholder="Ex: Cite uma palavra que define IA na saúde..."></textarea>
+        <button class="btn btn-primary w-full" id="launchWcBtn" style="margin-top:.5rem;">☁ Lançar nuvem</button>
+      </div>
+      <div id="wordcloudResults" class="hidden">
+        <p style="font-size:.72rem;color:rgba(255,255,255,.5);text-align:center;font-style:italic;margin-bottom:.5rem;" id="wcQuestionDisplay"></p>
+        <div class="wc-display" id="wcDisplay">
+          <span style="color:rgba(255,255,255,.2);font-size:.8rem;">Aguardando respostas...</span>
+        </div>
+        <p style="font-size:.7rem;color:rgba(255,255,255,.3);text-align:center;margin-top:.5rem;" id="wcCount">0 respostas</p>
+        <button class="btn btn-danger w-full" id="endWcBtn" style="margin-top:.75rem;">Encerrar nuvem</button>
+      </div>
+
+      <!-- ── MURAL DE FRASES ── -->
+      <div id="muralCreator" class="hidden">
+        <p class="fp-section">Pergunta para o mural</p>
+        <textarea id="muralQuestion" class="qinput" rows="2" placeholder="Ex: O que mudaria na sua prática hoje?"></textarea>
+        <button class="btn btn-primary w-full" id="launchMuralBtn" style="margin-top:.5rem;">💬 Lançar mural</button>
+      </div>
+      <div id="muralResults" class="hidden">
+        <p style="font-size:.72rem;color:rgba(255,255,255,.5);text-align:center;font-style:italic;margin-bottom:.5rem;" id="muralQuestionDisplay"></p>
+        <div class="mural-feed" id="muralFeed"></div>
+        <p style="font-size:.7rem;color:rgba(255,255,255,.3);text-align:center;margin-top:.5rem;" id="muralCount">0 respostas</p>
+        <button class="btn btn-danger w-full" id="endMuralBtn" style="margin-top:.75rem;">Encerrar mural</button>
+      </div>
+
+      <!-- ── RANKING ── -->
+      <div id="rankingCreator" class="hidden">
+        <p class="fp-section">Pergunta para a turma</p>
+        <textarea id="rankQuestion" class="qinput" rows="2" placeholder="Ex: Ordene as etapas da triagem..."></textarea>
+        <p class="fp-section" style="margin-top:.5rem;">Itens para ordenar</p>
+        <div id="rankItemsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <button class="tbtn" id="addRankItemBtn"
+          style="color:rgba(255,255,255,.45);font-size:.8rem;width:100%;border-radius:8px;background:rgba(255,255,255,.05);height:34px;">
+          + Adicionar item
+        </button>
+        <button class="btn btn-primary w-full" id="launchRankingBtn" style="margin-top:.5rem;">↕ Lançar ranking</button>
+      </div>
+      <div id="rankingResults" class="hidden">
+        <p style="font-size:.72rem;color:rgba(255,255,255,.4);text-align:center;margin-bottom:.625rem;">Ranking médio da turma</p>
+        <div id="rankingDisplay"></div>
+        <p style="font-size:.7rem;color:rgba(255,255,255,.3);text-align:center;margin-top:.5rem;" id="rankCount">0 respostas</p>
+        <button class="btn btn-danger w-full" id="endRankingBtn" style="margin-top:.75rem;">Encerrar ranking</button>
+      </div>
+
     </div>
   </div>
 
@@ -777,6 +862,7 @@ document.getElementById('launchQuizBtn').addEventListener('click', () => {
   socket.emit('quiz:launch', quiz);
   activeQuiz = quiz;
 
+  hidePollTabs();
   document.getElementById('quizCreator').classList.add('hidden');
   document.getElementById('quizResultsPanel').classList.remove('hidden');
   document.getElementById('quizPanelTitle').textContent = 'Resultados ao vivo';
@@ -792,9 +878,179 @@ document.getElementById('endQuizBtn').addEventListener('click', () => {
   activeQuiz = null;
   document.getElementById('quizResultsPanel').classList.add('hidden');
   document.getElementById('quizCreator').classList.remove('hidden');
-  document.getElementById('quizPanelTitle').textContent = 'Criar quiz';
+  document.getElementById('quizPanelTitle').textContent = 'Enquetes';
   document.getElementById('quizQuestion').value = '';
   quizOpts = ['', '', '', '']; correctAns = null; buildOptRows();
+  showPollTabs();
+});
+
+// ─── Poll tabs ───────────────────────────────────────────────────────────────
+function hidePollTabs() { document.getElementById('pollTypeTabs').style.display = 'none'; }
+function showPollTabs()  { document.getElementById('pollTypeTabs').style.display = 'flex'; }
+
+function switchPollTab(type) {
+  document.querySelectorAll('.poll-tab').forEach(t => t.classList.toggle('active', t.dataset.ptype === type));
+  ['quizCreator','quizResultsPanel','wordcloudCreator','wordcloudResults',
+   'muralCreator','muralResults','rankingCreator','rankingResults']
+    .forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  const creators = { quiz:'quizCreator', wordcloud:'wordcloudCreator', mural:'muralCreator', ranking:'rankingCreator' };
+  document.getElementById(creators[type])?.classList.remove('hidden');
+}
+document.querySelectorAll('.poll-tab').forEach(tab =>
+  tab.addEventListener('click', () => switchPollTab(tab.dataset.ptype)));
+switchPollTab('quiz');
+
+// ─── Word cloud ──────────────────────────────────────────────────────────────
+document.getElementById('launchWcBtn').addEventListener('click', () => {
+  const question = document.getElementById('wcQuestion').value.trim();
+  if (!question) { toast('Digite a pergunta', 'err'); return; }
+  socket.emit('poll:launch', { type: 'wordcloud', question });
+  document.getElementById('wordcloudCreator').classList.add('hidden');
+  document.getElementById('wordcloudResults').classList.remove('hidden');
+  document.getElementById('wcQuestionDisplay').textContent = question;
+  document.getElementById('wcDisplay').innerHTML = '<span style="color:rgba(255,255,255,.2);font-size:.8rem;">Aguardando respostas...</span>';
+  document.getElementById('wcCount').textContent = '0 respostas';
+  hidePollTabs();
+  openPanel('quiz');
+});
+
+document.getElementById('endWcBtn').addEventListener('click', () => {
+  socket.emit('poll:end');
+  document.getElementById('wordcloudResults').classList.add('hidden');
+  document.getElementById('wordcloudCreator').classList.remove('hidden');
+  document.getElementById('wcQuestion').value = '';
+  showPollTabs();
+});
+
+const WC_COLORS = ['var(--laranja)','#22c55e','#44BBFF','#FFE033','#FF88AA','#C084FC'];
+function renderWordCloud(responses) {
+  const freq = {};
+  responses.forEach(r => {
+    const w = String(r.response).trim().toLowerCase();
+    freq[w] = (freq[w] || 0) + 1;
+  });
+  const maxF = Math.max(...Object.values(freq), 1);
+  const html = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .map(([w, n], idx) => {
+      const size = (0.8 + (n / maxF) * 1.4).toFixed(2);
+      return `<span class="wc-word" style="font-size:${size}rem;color:${WC_COLORS[idx % WC_COLORS.length]}">${w}</span>`;
+    }).join('');
+  document.getElementById('wcDisplay').innerHTML = html || '<span style="color:rgba(255,255,255,.2);font-size:.8rem;">Aguardando respostas...</span>';
+  document.getElementById('wcCount').textContent = `${responses.length} resposta${responses.length !== 1 ? 's' : ''}`;
+}
+
+// ─── Mural ───────────────────────────────────────────────────────────────────
+document.getElementById('launchMuralBtn').addEventListener('click', () => {
+  const question = document.getElementById('muralQuestion').value.trim();
+  if (!question) { toast('Digite a pergunta', 'err'); return; }
+  socket.emit('poll:launch', { type: 'mural', question });
+  document.getElementById('muralCreator').classList.add('hidden');
+  document.getElementById('muralResults').classList.remove('hidden');
+  document.getElementById('muralQuestionDisplay').textContent = question;
+  document.getElementById('muralFeed').innerHTML = '';
+  document.getElementById('muralCount').textContent = '0 respostas';
+  hidePollTabs();
+  openPanel('quiz');
+});
+
+document.getElementById('endMuralBtn').addEventListener('click', () => {
+  socket.emit('poll:end');
+  document.getElementById('muralResults').classList.add('hidden');
+  document.getElementById('muralCreator').classList.remove('hidden');
+  document.getElementById('muralQuestion').value = '';
+  showPollTabs();
+});
+
+const MURAL_SCHEMES = [
+  { bg:'rgba(247,148,29,.12)', border:'#F7941D' },
+  { bg:'rgba(18,163,184,.12)', border:'#12A3B8' },
+  { bg:'rgba(34,197,94,.12)',  border:'#22c55e' },
+  { bg:'rgba(99,102,241,.12)', border:'#818cf8' },
+];
+function renderMural(responses) {
+  document.getElementById('muralFeed').innerHTML = responses.map((r, i) => {
+    const s = MURAL_SCHEMES[i % MURAL_SCHEMES.length];
+    return `<div class="mural-card" style="background:${s.bg};border-color:${s.border}">
+      <div class="mural-card-name">${r.name}</div>
+      <div class="mural-card-text">${r.response}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('muralCount').textContent = `${responses.length} resposta${responses.length !== 1 ? 's' : ''}`;
+}
+
+// ─── Ranking creator ─────────────────────────────────────────────────────────
+let rankItems = ['', ''];
+
+function buildRankItemsUI() {
+  const list = document.getElementById('rankItemsList');
+  list.innerHTML = rankItems.map((item, i) => `
+    <div class="rank-input-row">
+      <div class="opt-letter">${i + 1}</div>
+      <input type="text" class="qinput" style="flex:1;padding:.5rem .75rem" placeholder="Item ${i + 1}" value="${item}" data-ri="${i}">
+      ${rankItems.length > 2 ? `<button class="rank-del-btn" data-ri="${i}" title="Remover">×</button>` : ''}
+    </div>`).join('');
+  list.querySelectorAll('input').forEach(inp =>
+    inp.addEventListener('input', () => { rankItems[+inp.dataset.ri] = inp.value; }));
+  list.querySelectorAll('.rank-del-btn').forEach(btn =>
+    btn.addEventListener('click', () => { rankItems.splice(+btn.dataset.ri, 1); buildRankItemsUI(); }));
+}
+buildRankItemsUI();
+
+document.getElementById('addRankItemBtn').addEventListener('click', () => {
+  if (rankItems.length < 6) { rankItems.push(''); buildRankItemsUI(); }
+});
+
+document.getElementById('launchRankingBtn').addEventListener('click', () => {
+  const question = document.getElementById('rankQuestion').value.trim();
+  const items    = rankItems.filter(i => i.trim());
+  if (!question)      { toast('Digite a pergunta', 'err'); return; }
+  if (items.length < 2){ toast('Mínimo 2 itens', 'err');  return; }
+  socket.emit('poll:launch', { type: 'ranking', question, items });
+  document.getElementById('rankingCreator').classList.add('hidden');
+  document.getElementById('rankingResults').classList.remove('hidden');
+  document.getElementById('rankingDisplay').innerHTML = '';
+  document.getElementById('rankCount').textContent = '0 respostas';
+  hidePollTabs();
+  openPanel('quiz');
+});
+
+document.getElementById('endRankingBtn').addEventListener('click', () => {
+  socket.emit('poll:end');
+  document.getElementById('rankingResults').classList.add('hidden');
+  document.getElementById('rankingCreator').classList.remove('hidden');
+  document.getElementById('rankQuestion').value = '';
+  rankItems = ['', ''];
+  buildRankItemsUI();
+  showPollTabs();
+});
+
+function renderRankingResults(responses, items) {
+  const scores = {};
+  items.forEach(it => { scores[it] = 0; });
+  responses.forEach(r => {
+    const order = Array.isArray(r.response) ? r.response : items;
+    order.forEach((it, pos) => { if (scores[it] !== undefined) scores[it] += pos; });
+  });
+  const sorted = items.slice().sort((a, b) => scores[a] - scores[b]);
+  const maxScore = responses.length * (items.length - 1) || 1;
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('rankingDisplay').innerHTML = sorted.map((it, i) => {
+    const pct = Math.max(0, Math.round(100 - (scores[it] / maxScore) * 100));
+    return `<div class="rank-item-res">
+      <div class="rank-pos">${medals[i] || (i+1)+'°'}</div>
+      <div class="rank-label-res">${it}</div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('rankCount').textContent = `${responses.length} resposta${responses.length !== 1 ? 's' : ''}`;
+}
+
+// ─── Poll results dispatch ───────────────────────────────────────────────────
+socket.on('poll:results', ({ responses, poll }) => {
+  if (poll.type === 'wordcloud') renderWordCloud(responses);
+  else if (poll.type === 'mural') renderMural(responses);
+  else if (poll.type === 'ranking') renderRankingResults(responses, poll.items);
 });
 
 function renderResultBars(breakdown, answered) {
