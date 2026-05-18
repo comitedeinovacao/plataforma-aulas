@@ -425,7 +425,8 @@
         }
         frame.onload = () => {
           document.getElementById('viewerState').style.display = 'none';
-          frame.style.pointerEvents = 'none'; // bloqueia navegação do aluno
+          // Quiz type must stay interactive; other HTML is blocked until activityReady
+          if (type !== 'quiz') frame.style.pointerEvents = 'none';
         };
         document.getElementById('slideInfo').textContent = '';
       }
